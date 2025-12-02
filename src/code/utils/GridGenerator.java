@@ -42,8 +42,9 @@ public class GridGenerator {
             do {
                 e1 = new Point(rand.nextInt(m), rand.nextInt(n));
                 e2 = new Point(rand.nextInt(m), rand.nextInt(n));
-            } while (e1.equals(e2) || !occupied.add(e1) || !occupied.add(e2));  // Distinct, no overlap with S/C
-            occupied.remove(e1); occupied.remove(e2);  // Allow overlap? No, distinct
+            } while (e1.equals(e2) || occupied.contains(e1) || occupied.contains(e2)); 
+            occupied.add(e1);
+            occupied.add(e2);
             tunnels.add(new Tunnel(e1, e2));
         }
 
@@ -54,7 +55,7 @@ public class GridGenerator {
             for (int x = 0; x < m - 1; x++) {
                 Point from = new Point(x, y);
                 Point to = new Point(x + 1, y);
-                int tr = rand.nextInt(5);  // 0-4
+                int tr = rand.nextInt(5);  // traffic between 0-4
                 trafficSb.append(from.getX()).append(",").append(from.getY()).append(",")
                          .append(to.getX()).append(",").append(to.getY()).append(",").append(tr).append(";");
             }

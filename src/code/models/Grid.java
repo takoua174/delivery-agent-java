@@ -1,5 +1,5 @@
 package code.delivery.models;
-
+import java.util.stream.Collectors;
 import java.util.*;
 
 public class Grid {
@@ -14,7 +14,8 @@ public class Grid {
         this.width = width;
         this.height = height;
     }
-
+    public int getWidth() { return width; }  
+    public int getHeight() { return height; }  
     public boolean isValidPosition(Point p) {
         return p.getX() >= 0 && p.getX() < width && p.getY() >= 0 && p.getY() < height;
     }
@@ -46,9 +47,15 @@ public class Grid {
     public void addCustomer(Point customer) {
         customers.add(customer);
     }
-
+    
     public Tunnel getTunnelAt(Point position) {
         return tunnels.stream().filter(t -> t.hasEntrance(position)).findFirst().orElse(null);
+    }
+
+    public List<Tunnel> getTunnelsAt(Point position) {  
+    return tunnels.stream()
+        .filter(t -> t.hasEntrance(position))
+        .collect(Collectors.toList());  
     }
 
     public List<Point> getStores() { return stores; }
@@ -56,6 +63,34 @@ public class Grid {
 
     public int manhattanDistance(Point p1, Point p2) {
         return Math.abs(p1.getX() - p2.getX()) + Math.abs(p1.getY() - p2.getY());
+    }
+
+    public List<Point> getNeighbors(Point p) {
+        List<Point> neighbors = new ArrayList<>();
+        int x = p.getX();
+        int y = p.getY();
+
+        Point[] candidates = new Point[] {
+            new Point(x + 1, y),
+            new Point(x - 1, y),
+            new Point(x, y + 1),
+            new Point(x, y - 1)
+        };
+
+        for (Point np : candidates) {
+            if (isValidPosition(np) && !isBlocked(p, np)) {
+                neighbors.add(np);
+            }
+        }
+
+        for (Tunnel t : tunnels) {
+            if (t.hasEntrance(p)) {
+                Point other = t.getOtherEnd(p);
+                if (!neighbors.contains(other)) neighbors.add(other);
+            }
+        }
+
+        return neighbors;
     }
 
     private String edgeKey(Point from, Point to) {

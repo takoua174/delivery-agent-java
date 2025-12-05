@@ -23,7 +23,7 @@ public class Grid {
     public int getTrafficCost(Point from, Point to) {
         String key = edgeKey(from, to);
         Integer cost = trafficLevels.get(key);
-        return cost != null ? cost : 1;
+        return cost ;
     }
 
     public List<Tunnel> getTunnels() {

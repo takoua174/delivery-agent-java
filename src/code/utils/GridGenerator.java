@@ -76,18 +76,24 @@ public class GridGenerator {
         }
 
         // Build string: m;n;P;S;StoreX1,Y1,...;CustX1,Y1,...;TunX1,Y1,TunX2,Y2,...;traffic...
+        //add stores and customers numbers
         StringBuilder sb = new StringBuilder()
             .append(m).append(";").append(n).append(";").append(P).append(";").append(S).append(";");
+        //stores locations
         for (Point p : stores) sb.append(p.getX()).append(",").append(p.getY()).append(",");
         sb.setLength(sb.length() - 1); sb.append(";");
+        //customers locations
         for (Point p : customers) sb.append(p.getX()).append(",").append(p.getY()).append(",");
         sb.setLength(sb.length() - 1); sb.append(";");
+        //tunnels locations
         for (Tunnel t : tunnels) {
             sb.append(t.getEntrance1().getX()).append(",").append(t.getEntrance1().getY()).append(",")
             .append(t.getEntrance2().getX()).append(",").append(t.getEntrance2().getY()).append(",");
         }
         if (!tunnels.isEmpty()) sb.setLength(sb.length() - 1);
-        sb.append(";").append(trafficSb);
+        // traffic levels
+        sb.append(";");  
+        sb.append(trafficSb);  // ← trafficSb already has its own semicolons
         return sb.toString();
     }
 

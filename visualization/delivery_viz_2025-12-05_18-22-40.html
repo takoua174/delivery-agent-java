@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Route Visualization</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+       background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; padding:20px; }
+.container { max-width:1600px; margin:0 auto; background:white;
+             border-radius:15px; box-shadow:0 20px 60px rgba(0,0,0,0.3); padding:30px; }
+h1 { text-align:center; margin-bottom:30px; font-size:2.5em; color:#333; }
+
+.controls { display:flex; justify-content:center; gap:15px; margin-bottom:30px; flex-wrap:wrap; align-items:center; }
+.btn { padding:12px 24px; border:none; border-radius:8px; font-size:16px; cursor:pointer;
+      transition:all 0.3s; font-weight:600; box-shadow:0 4px 6px rgba(0,0,0,0.1); }
+.btn:hover { transform:translateY(-2px); box-shadow:0 6px 12px rgba(0,0,0,0.15); }
+.btn-primary { background:#667eea; color:white; }
+.btn-success { background:#10b981; color:white; }
+.btn-warning { background:#f59e0b; color:white; }
+.btn-secondary { background:#6b7280; color:white; }
+
+.speed-control { display:flex; align-items:center; gap:10px; background:#f3f4f6; padding:8px 16px; border-radius:8px; }
+
+.main-content { display:grid; grid-template-columns:1fr 420px; gap:30px; }
+.grid-container { background:#f9fafb; padding:20px; border-radius:10px; overflow:auto; position:relative; }
+.grid { display:grid; grid-template-columns:repeat(15,60px); grid-template-rows:repeat(11,60px);
+        gap:2px; margin:0 auto; width:fit-content; position:relative; }
+.cell { width:60px; height:60px; border:2px solid #d1d5db; border-radius:8px;
+        display:flex; align-items:center; justify-content:center; font-size:24px;
+        background:white; transition:all 0.3s; position:relative; }
+.cell:hover { transform:scale(1.05); z-index:10; }
+
+.cell.store { background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; }
+.cell.customer { background:linear-gradient(135deg,#10b981,#059669); color:white; }
+.cell.tunnel { background:linear-gradient(135deg,#6b7280,#4b5563); color:white; }
+.cell.blocked { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; }
+.cell.truck { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:white;
+              animation:pulse 1s infinite; box-shadow:0 0 20px rgba(251,191,36,0.6); }
+@keyframes pulse { 0%,100% {transform:scale(1)} 50% {transform:scale(1.1)} }
+
+.tunnel-number { position:absolute; bottom:4px; right:4px; background:#ef4444; color:white;
+                 font-size:10px; padding:2px 5px; border-radius:50%; font-weight:bold; }
+.cell-number { position:absolute; top:2px; right:4px; font-size:12px; font-weight:bold;
+               background:rgba(255,255,255,0.9); color:#333; padding:2px 6px; border-radius:4px; }
+
+.edge-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.edge { stroke:#ccc; stroke-width:2; }
+.edge-blocked { stroke:#ef4444; stroke-dasharray:6,6; }
+.edge-label { position:absolute; font-size:11px; font-weight:bold; background:rgba(255,255,255,0.9);
+              padding:2px 5px; border-radius:4px; pointer-events:none; }
+
+.path-line { stroke-width:5; stroke-linecap:round; pointer-events:none; }
+.path-forward { stroke:#10b981; }
+.path-return { stroke:#3b82f6; }
+
+.results-panel { background:#f9fafb; padding:20px; border-radius:10px; max-height:800px; overflow-y:auto; }
+#pathSelector { background:#f3f4f6; padding:15px; border-radius:8px; margin-bottom:20px; max-height:300px; overflow-y:auto; }
+.path-btn { display:block; width:100%; margin-bottom:8px; padding:12px; border:none;
+            background:#e5e7eb; border-radius:6px; cursor:pointer; text-align:left; transition:0.2s; }
+.path-btn:hover { background:#d1d5db; }
+.path-btn.selected { background:#10b981; color:white; }
+
+#results { background:white; padding:15px; border-radius:8px; font-family:'Courier New',monospace;
+           font-size:14px; line-height:1.6; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+.store-assignment { margin-bottom:15px; padding:10px; background:#f3f4f6; border-radius:6px;
+                    border-left:4px solid #667eea; }
+.total-cost { font-size:18px; font-weight:bold; color:#10b981; margin-top:15px;
+              padding:12px; background:#d1fae5; border-radius:6px; text-align:center; }
+
+.legend { margin-top:20px; }
+.legend-item { display:flex; align-items:center; margin-bottom:8px; gap:10px; }
+.legend-box { width:40px; height:40px; border-radius:6px; display:flex;
+              align-items:center; justify-content:center; font-size:18px; }
+
+@media (max-width:1200px) { .main-content { grid-template-columns:1fr; } }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Delivery Route Visualization</h1>
+        <div class="controls">
+            <button id="nextBtn" class="btn btn-primary">Next Step</button>
+            <button id="playBtn" class="btn btn-success">Play</button>
+            <button id="pauseBtn" class="btn btn-warning" style="display:none;">Pause</button>
+            <button id="resetBtn" class="btn btn-secondary">Reset</button>
+            <span class="speed-control">
+                <label>Speed: </label>
+                <input type="range" id="speedSlider" min="200" max="2000" value="800" step="100">
+                <span id="speedValue">800ms</span>
+            </span>
+        </div>
+
+        <div class="main-content">
+            <div class="grid-container"><div class="grid" id="grid">
+<div class="cell" data-x="0" data-y="0"></div>
+<div class="cell" data-x="1" data-y="0"></div>
+<div class="cell" data-x="2" data-y="0"></div>
+<div class="cell" data-x="3" data-y="0"></div>
+<div class="cell" data-x="4" data-y="0"></div>
+<div class="cell" data-x="5" data-y="0"></div>
+<div class="cell" data-x="6" data-y="0"></div>
+<div class="cell" data-x="7" data-y="0"></div>
+<div class="cell" data-x="8" data-y="0"></div>
+<div class="cell" data-x="9" data-y="0"></div>
+<div class="cell" data-x="10" data-y="0"></div>
+<div class="cell" data-x="11" data-y="0" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">1</span></div>
+<div class="cell" data-x="12" data-y="0"></div>
+<div class="cell" data-x="13" data-y="0" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">1</span></div>
+<div class="cell" data-x="14" data-y="0"></div>
+<div class="cell" data-x="0" data-y="1"></div>
+<div class="cell" data-x="1" data-y="1"></div>
+<div class="cell" data-x="2" data-y="1"></div>
+<div class="cell" data-x="3" data-y="1"></div>
+<div class="cell" data-x="4" data-y="1"></div>
+<div class="cell" data-x="5" data-y="1"></div>
+<div class="cell" data-x="6" data-y="1"></div>
+<div class="cell" data-x="7" data-y="1"></div>
+<div class="cell" data-x="8" data-y="1"></div>
+<div class="cell" data-x="9" data-y="1"></div>
+<div class="cell" data-x="10" data-y="1"></div>
+<div class="cell" data-x="11" data-y="1" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">2</span></div>
+<div class="cell" data-x="12" data-y="1"></div>
+<div class="cell" data-x="13" data-y="1"></div>
+<div class="cell" data-x="14" data-y="1"></div>
+<div class="cell" data-x="0" data-y="2"></div>
+<div class="cell" data-x="1" data-y="2"></div>
+<div class="cell" data-x="2" data-y="2"></div>
+<div class="cell" data-x="3" data-y="2"></div>
+<div class="cell" data-x="4" data-y="2"></div>
+<div class="cell" data-x="5" data-y="2"></div>
+<div class="cell" data-x="6" data-y="2"></div>
+<div class="cell" data-x="7" data-y="2"></div>
+<div class="cell" data-x="8" data-y="2"></div>
+<div class="cell" data-x="9" data-y="2"></div>
+<div class="cell" data-x="10" data-y="2"></div>
+<div class="cell" data-x="11" data-y="2"></div>
+<div class="cell" data-x="12" data-y="2"></div>
+<div class="cell" data-x="13" data-y="2"></div>
+<div class="cell" data-x="14" data-y="2"></div>
+<div class="cell" data-x="0" data-y="3"></div>
+<div class="cell" data-x="1" data-y="3"></div>
+<div class="cell" data-x="2" data-y="3"></div>
+<div class="cell" data-x="3" data-y="3"></div>
+<div class="cell" data-x="4" data-y="3"></div>
+<div class="cell" data-x="5" data-y="3"></div>
+<div class="cell" data-x="6" data-y="3"></div>
+<div class="cell" data-x="7" data-y="3" data-type="customer"><i class="fas fa-home"></i><span class="cell-number">1</span></div>
+<div class="cell" data-x="8" data-y="3" data-type="customer"><i class="fas fa-home"></i><span class="cell-number">5</span></div>
+<div class="cell" data-x="9" data-y="3"></div>
+<div class="cell" data-x="10" data-y="3"></div>
+<div class="cell" data-x="11" data-y="3"></div>
+<div class="cell" data-x="12" data-y="3"></div>
+<div class="cell" data-x="13" data-y="3"></div>
+<div class="cell" data-x="14" data-y="3"></div>
+<div class="cell" data-x="0" data-y="4"></div>
+<div class="cell" data-x="1" data-y="4"></div>
+<div class="cell" data-x="2" data-y="4" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">3</span></div>
+<div class="cell" data-x="3" data-y="4"></div>
+<div class="cell" data-x="4" data-y="4"></div>
+<div class="cell" data-x="5" data-y="4"></div>
+<div class="cell" data-x="6" data-y="4"></div>
+<div class="cell" data-x="7" data-y="4"></div>
+<div class="cell" data-x="8" data-y="4"></div>
+<div class="cell" data-x="9" data-y="4"></div>
+<div class="cell" data-x="10" data-y="4"></div>
+<div class="cell" data-x="11" data-y="4"></div>
+<div class="cell" data-x="12" data-y="4"></div>
+<div class="cell" data-x="13" data-y="4"></div>
+<div class="cell" data-x="14" data-y="4"></div>
+<div class="cell" data-x="0" data-y="5"></div>
+<div class="cell" data-x="1" data-y="5"></div>
+<div class="cell" data-x="2" data-y="5"></div>
+<div class="cell" data-x="3" data-y="5"></div>
+<div class="cell" data-x="4" data-y="5"></div>
+<div class="cell" data-x="5" data-y="5"></div>
+<div class="cell" data-x="6" data-y="5"></div>
+<div class="cell" data-x="7" data-y="5"></div>
+<div class="cell" data-x="8" data-y="5"></div>
+<div class="cell" data-x="9" data-y="5" data-type="customer"><i class="fas fa-home"></i><span class="cell-number">4</span></div>
+<div class="cell" data-x="10" data-y="5"></div>
+<div class="cell" data-x="11" data-y="5"></div>
+<div class="cell" data-x="12" data-y="5"></div>
+<div class="cell" data-x="13" data-y="5"></div>
+<div class="cell" data-x="14" data-y="5"></div>
+<div class="cell" data-x="0" data-y="6"></div>
+<div class="cell" data-x="1" data-y="6"></div>
+<div class="cell" data-x="2" data-y="6"></div>
+<div class="cell" data-x="3" data-y="6" data-type="customer"><i class="fas fa-home"></i><span class="cell-number">3</span></div>
+<div class="cell" data-x="4" data-y="6"></div>
+<div class="cell" data-x="5" data-y="6"></div>
+<div class="cell" data-x="6" data-y="6"></div>
+<div class="cell" data-x="7" data-y="6"></div>
+<div class="cell" data-x="8" data-y="6"></div>
+<div class="cell" data-x="9" data-y="6"></div>
+<div class="cell" data-x="10" data-y="6"></div>
+<div class="cell" data-x="11" data-y="6"></div>
+<div class="cell" data-x="12" data-y="6"></div>
+<div class="cell" data-x="13" data-y="6"></div>
+<div class="cell" data-x="14" data-y="6"></div>
+<div class="cell" data-x="0" data-y="7"></div>
+<div class="cell" data-x="1" data-y="7"></div>
+<div class="cell" data-x="2" data-y="7"></div>
+<div class="cell" data-x="3" data-y="7"></div>
+<div class="cell" data-x="4" data-y="7"></div>
+<div class="cell" data-x="5" data-y="7"></div>
+<div class="cell" data-x="6" data-y="7"></div>
+<div class="cell" data-x="7" data-y="7"></div>
+<div class="cell" data-x="8" data-y="7"></div>
+<div class="cell" data-x="9" data-y="7"></div>
+<div class="cell" data-x="10" data-y="7"></div>
+<div class="cell" data-x="11" data-y="7"></div>
+<div class="cell" data-x="12" data-y="7"></div>
+<div class="cell" data-x="13" data-y="7"></div>
+<div class="cell" data-x="14" data-y="7"></div>
+<div class="cell" data-x="0" data-y="8"></div>
+<div class="cell" data-x="1" data-y="8"></div>
+<div class="cell" data-x="2" data-y="8"></div>
+<div class="cell" data-x="3" data-y="8"></div>
+<div class="cell" data-x="4" data-y="8"></div>
+<div class="cell" data-x="5" data-y="8"></div>
+<div class="cell" data-x="6" data-y="8"></div>
+<div class="cell" data-x="7" data-y="8" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">2</span></div>
+<div class="cell" data-x="8" data-y="8"></div>
+<div class="cell" data-x="9" data-y="8"></div>
+<div class="cell" data-x="10" data-y="8"></div>
+<div class="cell" data-x="11" data-y="8"></div>
+<div class="cell" data-x="12" data-y="8"></div>
+<div class="cell" data-x="13" data-y="8"></div>
+<div class="cell" data-x="14" data-y="8"></div>
+<div class="cell" data-x="0" data-y="9" data-type="store"><i class="fas fa-store"></i><span class="cell-number">1</span></div>
+<div class="cell" data-x="1" data-y="9"></div>
+<div class="cell" data-x="2" data-y="9"></div>
+<div class="cell" data-x="3" data-y="9"></div>
+<div class="cell" data-x="4" data-y="9"></div>
+<div class="cell" data-x="5" data-y="9"></div>
+<div class="cell" data-x="6" data-y="9"></div>
+<div class="cell" data-x="7" data-y="9"></div>
+<div class="cell" data-x="8" data-y="9"></div>
+<div class="cell" data-x="9" data-y="9"></div>
+<div class="cell" data-x="10" data-y="9"></div>
+<div class="cell" data-x="11" data-y="9"></div>
+<div class="cell" data-x="12" data-y="9"></div>
+<div class="cell" data-x="13" data-y="9"></div>
+<div class="cell" data-x="14" data-y="9"></div>
+<div class="cell" data-x="0" data-y="10"></div>
+<div class="cell" data-x="1" data-y="10"></div>
+<div class="cell" data-x="2" data-y="10"></div>
+<div class="cell" data-x="3" data-y="10" data-type="tunnel"><i class="fas fa-subway"></i><span class="tunnel-number">3</span></div>
+<div class="cell" data-x="4" data-y="10"></div>
+<div class="cell" data-x="5" data-y="10"></div>
+<div class="cell" data-x="6" data-y="10"></div>
+<div class="cell" data-x="7" data-y="10" data-type="customer"><i class="fas fa-home"></i><span class="cell-number">2</span></div>
+<div class="cell" data-x="8" data-y="10"></div>
+<div class="cell" data-x="9" data-y="10"></div>
+<div class="cell" data-x="10" data-y="10"></div>
+<div class="cell" data-x="11" data-y="10"></div>
+<div class="cell" data-x="12" data-y="10"></div>
+<div class="cell" data-x="13" data-y="10"></div>
+<div class="cell" data-x="14" data-y="10"></div>
+<svg class="edge-overlay" width="930" height="682">
+<line x1="31" y1="31" x2="93" y2="31" class="edge"/><text x="62" y="36" class="edge-label">1</text><line x1="93" y1="31" x2="155" y2="31" class="edge"/><text x="124" y="36" class="edge-label">1</text><line x1="155" y1="31" x2="217" y2="31" class="edge"/><text x="186" y="36" class="edge-label">1</text><line x1="217" y1="31" x2="279" y2="31" class="edge"/><text x="248" y="36" class="edge-label">1</text><line x1="279" y1="31" x2="341" y2="31" class="edge"/><text x="310" y="36" class="edge-label">1</text><line x1="341" y1="31" x2="403" y2="31" class="edge"/><text x="372" y="36" class="edge-label">1</text><line x1="403" y1="31" x2="465" y2="31" class="edge"/><text x="434" y="36" class="edge-label">1</text><line x1="465" y1="31" x2="527" y2="31" class="edge"/><text x="496" y="36" class="edge-label">1</text><line x1="527" y1="31" x2="589" y2="31" class="edge"/><text x="558" y="36" class="edge-label">1</text><line x1="589" y1="31" x2="651" y2="31" class="edge"/><text x="620" y="36" class="edge-label">1</text><line x1="651" y1="31" x2="713" y2="31" class="edge"/><text x="682" y="36" class="edge-label">1</text><line x1="713" y1="31" x2="775" y2="31" class="edge"/><text x="744" y="36" class="edge-label">1</text><line x1="775" y1="31" x2="837" y2="31" class="edge"/><text x="806" y="36" class="edge-label">1</text><line x1="837" y1="31" x2="899" y2="31" class="edge"/><text x="868" y="36" class="edge-label">1</text><line x1="31" y1="93" x2="93" y2="93" class="edge"/><text x="62" y="98" class="edge-label">1</text><line x1="93" y1="93" x2="155" y2="93" class="edge"/><text x="124" y="98" class="edge-label">1</text><line x1="155" y1="93" x2="217" y2="93" class="edge"/><text x="186" y="98" class="edge-label">1</text><line x1="217" y1="93" x2="279" y2="93" class="edge"/><text x="248" y="98" class="edge-label">1</text><line x1="279" y1="93" x2="341" y2="93" class="edge"/><text x="310" y="98" class="edge-label">1</text><line x1="341" y1="93" x2="403" y2="93" class="edge"/><text x="372" y="98" class="edge-label">1</text><line x1="403" y1="93" x2="465" y2="93" class="edge"/><text x="434" y="98" class="edge-label">1</text><line x1="465" y1="93" x2="527" y2="93" class="edge"/><text x="496" y="98" class="edge-label">1</text><line x1="527" y1="93" x2="589" y2="93" class="edge"/><text x="558" y="98" class="edge-label">1</text><line x1="589" y1="93" x2="651" y2="93" class="edge"/><text x="620" y="98" class="edge-label">1</text><line x1="651" y1="93" x2="713" y2="93" class="edge"/><text x="682" y="98" class="edge-label">1</text><line x1="713" y1="93" x2="775" y2="93" class="edge"/><text x="744" y="98" class="edge-label">1</text><line x1="775" y1="93" x2="837" y2="93" class="edge"/><text x="806" y="98" class="edge-label">1</text><line x1="837" y1="93" x2="899" y2="93" class="edge"/><text x="868" y="98" class="edge-label">1</text><line x1="31" y1="155" x2="93" y2="155" class="edge"/><text x="62" y="160" class="edge-label">1</text><line x1="93" y1="155" x2="155" y2="155" class="edge"/><text x="124" y="160" class="edge-label">1</text><line x1="155" y1="155" x2="217" y2="155" class="edge"/><text x="186" y="160" class="edge-label">1</text><line x1="217" y1="155" x2="279" y2="155" class="edge"/><text x="248" y="160" class="edge-label">1</text><line x1="279" y1="155" x2="341" y2="155" class="edge"/><text x="310" y="160" class="edge-label">1</text><line x1="341" y1="155" x2="403" y2="155" class="edge"/><text x="372" y="160" class="edge-label">1</text><line x1="403" y1="155" x2="465" y2="155" class="edge"/><text x="434" y="160" class="edge-label">1</text><line x1="465" y1="155" x2="527" y2="155" class="edge"/><text x="496" y="160" class="edge-label">1</text><line x1="527" y1="155" x2="589" y2="155" class="edge"/><text x="558" y="160" class="edge-label">1</text><line x1="589" y1="155" x2="651" y2="155" class="edge"/><text x="620" y="160" class="edge-label">1</text><line x1="651" y1="155" x2="713" y2="155" class="edge"/><text x="682" y="160" class="edge-label">1</text><line x1="713" y1="155" x2="775" y2="155" class="edge"/><text x="744" y="160" class="edge-label">1</text><line x1="775" y1="155" x2="837" y2="155" class="edge"/><text x="806" y="160" class="edge-label">1</text><line x1="837" y1="155" x2="899" y2="155" class="edge"/><text x="868" y="160" class="edge-label">1</text><line x1="31" y1="217" x2="93" y2="217" class="edge"/><text x="62" y="222" class="edge-label">1</text><line x1="93" y1="217" x2="155" y2="217" class="edge"/><text x="124" y="222" class="edge-label">1</text><line x1="155" y1="217" x2="217" y2="217" class="edge"/><text x="186" y="222" class="edge-label">1</text><line x1="217" y1="217" x2="279" y2="217" class="edge"/><text x="248" y="222" class="edge-label">1</text><line x1="279" y1="217" x2="341" y2="217" class="edge"/><text x="310" y="222" class="edge-label">1</text><line x1="341" y1="217" x2="403" y2="217" class="edge"/><text x="372" y="222" class="edge-label">1</text><line x1="403" y1="217" x2="465" y2="217" class="edge"/><text x="434" y="222" class="edge-label">1</text><line x1="465" y1="217" x2="527" y2="217" class="edge"/><text x="496" y="222" class="edge-label">1</text><line x1="527" y1="217" x2="589" y2="217" class="edge"/><text x="558" y="222" class="edge-label">1</text><line x1="589" y1="217" x2="651" y2="217" class="edge"/><text x="620" y="222" class="edge-label">1</text><line x1="651" y1="217" x2="713" y2="217" class="edge"/><text x="682" y="222" class="edge-label">1</text><line x1="713" y1="217" x2="775" y2="217" class="edge"/><text x="744" y="222" class="edge-label">1</text><line x1="775" y1="217" x2="837" y2="217" class="edge"/><text x="806" y="222" class="edge-label">1</text><line x1="837" y1="217" x2="899" y2="217" class="edge"/><text x="868" y="222" class="edge-label">1</text><line x1="31" y1="279" x2="93" y2="279" class="edge"/><text x="62" y="284" class="edge-label">1</text><line x1="93" y1="279" x2="155" y2="279" class="edge"/><text x="124" y="284" class="edge-label">1</text><line x1="155" y1="279" x2="217" y2="279" class="edge"/><text x="186" y="284" class="edge-label">1</text><line x1="217" y1="279" x2="279" y2="279" class="edge"/><text x="248" y="284" class="edge-label">1</text><line x1="279" y1="279" x2="341" y2="279" class="edge"/><text x="310" y="284" class="edge-label">1</text><line x1="341" y1="279" x2="403" y2="279" class="edge"/><text x="372" y="284" class="edge-label">1</text><line x1="403" y1="279" x2="465" y2="279" class="edge"/><text x="434" y="284" class="edge-label">1</text><line x1="465" y1="279" x2="527" y2="279" class="edge"/><text x="496" y="284" class="edge-label">1</text><line x1="527" y1="279" x2="589" y2="279" class="edge"/><text x="558" y="284" class="edge-label">1</text><line x1="589" y1="279" x2="651" y2="279" class="edge"/><text x="620" y="284" class="edge-label">1</text><line x1="651" y1="279" x2="713" y2="279" class="edge"/><text x="682" y="284" class="edge-label">1</text><line x1="713" y1="279" x2="775" y2="279" class="edge"/><text x="744" y="284" class="edge-label">1</text><line x1="775" y1="279" x2="837" y2="279" class="edge"/><text x="806" y="284" class="edge-label">1</text><line x1="837" y1="279" x2="899" y2="279" class="edge"/><text x="868" y="284" class="edge-label">1</text><line x1="31" y1="341" x2="93" y2="341" class="edge"/><text x="62" y="346" class="edge-label">1</text><line x1="93" y1="341" x2="155" y2="341" class="edge"/><text x="124" y="346" class="edge-label">1</text><line x1="155" y1="341" x2="217" y2="341" class="edge"/><text x="186" y="346" class="edge-label">1</text><line x1="217" y1="341" x2="279" y2="341" class="edge"/><text x="248" y="346" class="edge-label">1</text><line x1="279" y1="341" x2="341" y2="341" class="edge"/><text x="310" y="346" class="edge-label">1</text><line x1="341" y1="341" x2="403" y2="341" class="edge"/><text x="372" y="346" class="edge-label">1</text><line x1="403" y1="341" x2="465" y2="341" class="edge"/><text x="434" y="346" class="edge-label">1</text><line x1="465" y1="341" x2="527" y2="341" class="edge"/><text x="496" y="346" class="edge-label">1</text><line x1="527" y1="341" x2="589" y2="341" class="edge"/><text x="558" y="346" class="edge-label">1</text><line x1="589" y1="341" x2="651" y2="341" class="edge"/><text x="620" y="346" class="edge-label">1</text><line x1="651" y1="341" x2="713" y2="341" class="edge"/><text x="682" y="346" class="edge-label">1</text><line x1="713" y1="341" x2="775" y2="341" class="edge"/><text x="744" y="346" class="edge-label">1</text><line x1="775" y1="341" x2="837" y2="341" class="edge"/><text x="806" y="346" class="edge-label">1</text><line x1="837" y1="341" x2="899" y2="341" class="edge"/><text x="868" y="346" class="edge-label">1</text><line x1="31" y1="403" x2="93" y2="403" class="edge"/><text x="62" y="408" class="edge-label">1</text><line x1="93" y1="403" x2="155" y2="403" class="edge"/><text x="124" y="408" class="edge-label">1</text><line x1="155" y1="403" x2="217" y2="403" class="edge"/><text x="186" y="408" class="edge-label">1</text><line x1="217" y1="403" x2="279" y2="403" class="edge"/><text x="248" y="408" class="edge-label">1</text><line x1="279" y1="403" x2="341" y2="403" class="edge"/><text x="310" y="408" class="edge-label">1</text><line x1="341" y1="403" x2="403" y2="403" class="edge"/><text x="372" y="408" class="edge-label">1</text><line x1="403" y1="403" x2="465" y2="403" class="edge"/><text x="434" y="408" class="edge-label">1</text><line x1="465" y1="403" x2="527" y2="403" class="edge"/><text x="496" y="408" class="edge-label">1</text><line x1="527" y1="403" x2="589" y2="403" class="edge"/><text x="558" y="408" class="edge-label">1</text><line x1="589" y1="403" x2="651" y2="403" class="edge"/><text x="620" y="408" class="edge-label">1</text><line x1="651" y1="403" x2="713" y2="403" class="edge"/><text x="682" y="408" class="edge-label">1</text><line x1="713" y1="403" x2="775" y2="403" class="edge"/><text x="744" y="408" class="edge-label">1</text><line x1="775" y1="403" x2="837" y2="403" class="edge"/><text x="806" y="408" class="edge-label">1</text><line x1="837" y1="403" x2="899" y2="403" class="edge"/><text x="868" y="408" class="edge-label">1</text><line x1="31" y1="465" x2="93" y2="465" class="edge"/><text x="62" y="470" class="edge-label">1</text><line x1="93" y1="465" x2="155" y2="465" class="edge"/><text x="124" y="470" class="edge-label">1</text><line x1="155" y1="465" x2="217" y2="465" class="edge"/><text x="186" y="470" class="edge-label">1</text><line x1="217" y1="465" x2="279" y2="465" class="edge"/><text x="248" y="470" class="edge-label">1</text><line x1="279" y1="465" x2="341" y2="465" class="edge"/><text x="310" y="470" class="edge-label">1</text><line x1="341" y1="465" x2="403" y2="465" class="edge"/><text x="372" y="470" class="edge-label">1</text><line x1="403" y1="465" x2="465" y2="465" class="edge"/><text x="434" y="470" class="edge-label">1</text><line x1="465" y1="465" x2="527" y2="465" class="edge"/><text x="496" y="470" class="edge-label">1</text><line x1="527" y1="465" x2="589" y2="465" class="edge"/><text x="558" y="470" class="edge-label">1</text><line x1="589" y1="465" x2="651" y2="465" class="edge"/><text x="620" y="470" class="edge-label">1</text><line x1="651" y1="465" x2="713" y2="465" class="edge"/><text x="682" y="470" class="edge-label">1</text><line x1="713" y1="465" x2="775" y2="465" class="edge"/><text x="744" y="470" class="edge-label">1</text><line x1="775" y1="465" x2="837" y2="465" class="edge"/><text x="806" y="470" class="edge-label">1</text><line x1="837" y1="465" x2="899" y2="465" class="edge"/><text x="868" y="470" class="edge-label">1</text><line x1="31" y1="527" x2="93" y2="527" class="edge"/><text x="62" y="532" class="edge-label">1</text><line x1="93" y1="527" x2="155" y2="527" class="edge"/><text x="124" y="532" class="edge-label">1</text><line x1="155" y1="527" x2="217" y2="527" class="edge"/><text x="186" y="532" class="edge-label">1</text><line x1="217" y1="527" x2="279" y2="527" class="edge"/><text x="248" y="532" class="edge-label">1</text><line x1="279" y1="527" x2="341" y2="527" class="edge"/><text x="310" y="532" class="edge-label">1</text><line x1="341" y1="527" x2="403" y2="527" class="edge"/><text x="372" y="532" class="edge-label">1</text><line x1="403" y1="527" x2="465" y2="527" class="edge"/><text x="434" y="532" class="edge-label">1</text><line x1="465" y1="527" x2="527" y2="527" class="edge"/><text x="496" y="532" class="edge-label">1</text><line x1="527" y1="527" x2="589" y2="527" class="edge"/><text x="558" y="532" class="edge-label">1</text><line x1="589" y1="527" x2="651" y2="527" class="edge"/><text x="620" y="532" class="edge-label">1</text><line x1="651" y1="527" x2="713" y2="527" class="edge"/><text x="682" y="532" class="edge-label">1</text><line x1="713" y1="527" x2="775" y2="527" class="edge"/><text x="744" y="532" class="edge-label">1</text><line x1="775" y1="527" x2="837" y2="527" class="edge"/><text x="806" y="532" class="edge-label">1</text><line x1="837" y1="527" x2="899" y2="527" class="edge"/><text x="868" y="532" class="edge-label">1</text><line x1="31" y1="589" x2="93" y2="589" class="edge"/><text x="62" y="594" class="edge-label">1</text><line x1="93" y1="589" x2="155" y2="589" class="edge"/><text x="124" y="594" class="edge-label">1</text><line x1="155" y1="589" x2="217" y2="589" class="edge"/><text x="186" y="594" class="edge-label">1</text><line x1="217" y1="589" x2="279" y2="589" class="edge"/><text x="248" y="594" class="edge-label">1</text><line x1="279" y1="589" x2="341" y2="589" class="edge"/><text x="310" y="594" class="edge-label">1</text><line x1="341" y1="589" x2="403" y2="589" class="edge"/><text x="372" y="594" class="edge-label">1</text><line x1="403" y1="589" x2="465" y2="589" class="edge"/><text x="434" y="594" class="edge-label">1</text><line x1="465" y1="589" x2="527" y2="589" class="edge"/><text x="496" y="594" class="edge-label">1</text><line x1="527" y1="589" x2="589" y2="589" class="edge"/><text x="558" y="594" class="edge-label">1</text><line x1="589" y1="589" x2="651" y2="589" class="edge"/><text x="620" y="594" class="edge-label">1</text><line x1="651" y1="589" x2="713" y2="589" class="edge"/><text x="682" y="594" class="edge-label">1</text><line x1="713" y1="589" x2="775" y2="589" class="edge"/><text x="744" y="594" class="edge-label">1</text><line x1="775" y1="589" x2="837" y2="589" class="edge"/><text x="806" y="594" class="edge-label">1</text><line x1="837" y1="589" x2="899" y2="589" class="edge"/><text x="868" y="594" class="edge-label">1</text><line x1="31" y1="651" x2="93" y2="651" class="edge"/><text x="62" y="656" class="edge-label">1</text><line x1="93" y1="651" x2="155" y2="651" class="edge"/><text x="124" y="656" class="edge-label">1</text><line x1="155" y1="651" x2="217" y2="651" class="edge"/><text x="186" y="656" class="edge-label">1</text><line x1="217" y1="651" x2="279" y2="651" class="edge"/><text x="248" y="656" class="edge-label">1</text><line x1="279" y1="651" x2="341" y2="651" class="edge"/><text x="310" y="656" class="edge-label">1</text><line x1="341" y1="651" x2="403" y2="651" class="edge"/><text x="372" y="656" class="edge-label">1</text><line x1="403" y1="651" x2="465" y2="651" class="edge"/><text x="434" y="656" class="edge-label">1</text><line x1="465" y1="651" x2="527" y2="651" class="edge"/><text x="496" y="656" class="edge-label">1</text><line x1="527" y1="651" x2="589" y2="651" class="edge"/><text x="558" y="656" class="edge-label">1</text><line x1="589" y1="651" x2="651" y2="651" class="edge"/><text x="620" y="656" class="edge-label">1</text><line x1="651" y1="651" x2="713" y2="651" class="edge"/><text x="682" y="656" class="edge-label">1</text><line x1="713" y1="651" x2="775" y2="651" class="edge"/><text x="744" y="656" class="edge-label">1</text><line x1="775" y1="651" x2="837" y2="651" class="edge"/><text x="806" y="656" class="edge-label">1</text><line x1="837" y1="651" x2="899" y2="651" class="edge"/><text x="868" y="656" class="edge-label">1</text><line x1="31" y1="31" x2="31" y2="93" class="edge"/><text x="36" y="67" class="edge-label">1</text><line x1="31" y1="93" x2="31" y2="155" class="edge"/><text x="36" y="129" class="edge-label">1</text><line x1="31" y1="155" x2="31" y2="217" class="edge"/><text x="36" y="191" class="edge-label">1</text><line x1="31" y1="217" x2="31" y2="279" class="edge"/><text x="36" y="253" class="edge-label">1</text><line x1="31" y1="279" x2="31" y2="341" class="edge"/><text x="36" y="315" class="edge-label">1</text><line x1="31" y1="341" x2="31" y2="403" class="edge"/><text x="36" y="377" class="edge-label">1</text><line x1="31" y1="403" x2="31" y2="465" class="edge"/><text x="36" y="439" class="edge-label">1</text><line x1="31" y1="465" x2="31" y2="527" class="edge"/><text x="36" y="501" class="edge-label">1</text><line x1="31" y1="527" x2="31" y2="589" class="edge"/><text x="36" y="563" class="edge-label">1</text><line x1="31" y1="589" x2="31" y2="651" class="edge"/><text x="36" y="625" class="edge-label">1</text><line x1="93" y1="31" x2="93" y2="93" class="edge"/><text x="98" y="67" class="edge-label">1</text><line x1="93" y1="93" x2="93" y2="155" class="edge"/><text x="98" y="129" class="edge-label">1</text><line x1="93" y1="155" x2="93" y2="217" class="edge"/><text x="98" y="191" class="edge-label">1</text><line x1="93" y1="217" x2="93" y2="279" class="edge"/><text x="98" y="253" class="edge-label">1</text><line x1="93" y1="279" x2="93" y2="341" class="edge"/><text x="98" y="315" class="edge-label">1</text><line x1="93" y1="341" x2="93" y2="403" class="edge"/><text x="98" y="377" class="edge-label">1</text><line x1="93" y1="403" x2="93" y2="465" class="edge"/><text x="98" y="439" class="edge-label">1</text><line x1="93" y1="465" x2="93" y2="527" class="edge"/><text x="98" y="501" class="edge-label">1</text><line x1="93" y1="527" x2="93" y2="589" class="edge"/><text x="98" y="563" class="edge-label">1</text><line x1="93" y1="589" x2="93" y2="651" class="edge"/><text x="98" y="625" class="edge-label">1</text><line x1="155" y1="31" x2="155" y2="93" class="edge"/><text x="160" y="67" class="edge-label">1</text><line x1="155" y1="93" x2="155" y2="155" class="edge"/><text x="160" y="129" class="edge-label">1</text><line x1="155" y1="155" x2="155" y2="217" class="edge"/><text x="160" y="191" class="edge-label">1</text><line x1="155" y1="217" x2="155" y2="279" class="edge"/><text x="160" y="253" class="edge-label">1</text><line x1="155" y1="279" x2="155" y2="341" class="edge"/><text x="160" y="315" class="edge-label">1</text><line x1="155" y1="341" x2="155" y2="403" class="edge"/><text x="160" y="377" class="edge-label">1</text><line x1="155" y1="403" x2="155" y2="465" class="edge"/><text x="160" y="439" class="edge-label">1</text><line x1="155" y1="465" x2="155" y2="527" class="edge"/><text x="160" y="501" class="edge-label">1</text><line x1="155" y1="527" x2="155" y2="589" class="edge"/><text x="160" y="563" class="edge-label">1</text><line x1="155" y1="589" x2="155" y2="651" class="edge"/><text x="160" y="625" class="edge-label">1</text><line x1="217" y1="31" x2="217" y2="93" class="edge"/><text x="222" y="67" class="edge-label">1</text><line x1="217" y1="93" x2="217" y2="155" class="edge"/><text x="222" y="129" class="edge-label">1</text><line x1="217" y1="155" x2="217" y2="217" class="edge"/><text x="222" y="191" class="edge-label">1</text><line x1="217" y1="217" x2="217" y2="279" class="edge"/><text x="222" y="253" class="edge-label">1</text><line x1="217" y1="279" x2="217" y2="341" class="edge"/><text x="222" y="315" class="edge-label">1</text><line x1="217" y1="341" x2="217" y2="403" class="edge"/><text x="222" y="377" class="edge-label">1</text><line x1="217" y1="403" x2="217" y2="465" class="edge"/><text x="222" y="439" class="edge-label">1</text><line x1="217" y1="465" x2="217" y2="527" class="edge"/><text x="222" y="501" class="edge-label">1</text><line x1="217" y1="527" x2="217" y2="589" class="edge"/><text x="222" y="563" class="edge-label">1</text><line x1="217" y1="589" x2="217" y2="651" class="edge"/><text x="222" y="625" class="edge-label">1</text><line x1="279" y1="31" x2="279" y2="93" class="edge"/><text x="284" y="67" class="edge-label">1</text><line x1="279" y1="93" x2="279" y2="155" class="edge"/><text x="284" y="129" class="edge-label">1</text><line x1="279" y1="155" x2="279" y2="217" class="edge"/><text x="284" y="191" class="edge-label">1</text><line x1="279" y1="217" x2="279" y2="279" class="edge"/><text x="284" y="253" class="edge-label">1</text><line x1="279" y1="279" x2="279" y2="341" class="edge"/><text x="284" y="315" class="edge-label">1</text><line x1="279" y1="341" x2="279" y2="403" class="edge"/><text x="284" y="377" class="edge-label">1</text><line x1="279" y1="403" x2="279" y2="465" class="edge"/><text x="284" y="439" class="edge-label">1</text><line x1="279" y1="465" x2="279" y2="527" class="edge"/><text x="284" y="501" class="edge-label">1</text><line x1="279" y1="527" x2="279" y2="589" class="edge"/><text x="284" y="563" class="edge-label">1</text><line x1="279" y1="589" x2="279" y2="651" class="edge"/><text x="284" y="625" class="edge-label">1</text><line x1="341" y1="31" x2="341" y2="93" class="edge"/><text x="346" y="67" class="edge-label">1</text><line x1="341" y1="93" x2="341" y2="155" class="edge"/><text x="346" y="129" class="edge-label">1</text><line x1="341" y1="155" x2="341" y2="217" class="edge"/><text x="346" y="191" class="edge-label">1</text><line x1="341" y1="217" x2="341" y2="279" class="edge"/><text x="346" y="253" class="edge-label">1</text><line x1="341" y1="279" x2="341" y2="341" class="edge"/><text x="346" y="315" class="edge-label">1</text><line x1="341" y1="341" x2="341" y2="403" class="edge"/><text x="346" y="377" class="edge-label">1</text><line x1="341" y1="403" x2="341" y2="465" class="edge"/><text x="346" y="439" class="edge-label">1</text><line x1="341" y1="465" x2="341" y2="527" class="edge"/><text x="346" y="501" class="edge-label">1</text><line x1="341" y1="527" x2="341" y2="589" class="edge"/><text x="346" y="563" class="edge-label">1</text><line x1="341" y1="589" x2="341" y2="651" class="edge"/><text x="346" y="625" class="edge-label">1</text><line x1="403" y1="31" x2="403" y2="93" class="edge"/><text x="408" y="67" class="edge-label">1</text><line x1="403" y1="93" x2="403" y2="155" class="edge"/><text x="408" y="129" class="edge-label">1</text><line x1="403" y1="155" x2="403" y2="217" class="edge"/><text x="408" y="191" class="edge-label">1</text><line x1="403" y1="217" x2="403" y2="279" class="edge"/><text x="408" y="253" class="edge-label">1</text><line x1="403" y1="279" x2="403" y2="341" class="edge"/><text x="408" y="315" class="edge-label">1</text><line x1="403" y1="341" x2="403" y2="403" class="edge"/><text x="408" y="377" class="edge-label">1</text><line x1="403" y1="403" x2="403" y2="465" class="edge"/><text x="408" y="439" class="edge-label">1</text><line x1="403" y1="465" x2="403" y2="527" class="edge"/><text x="408" y="501" class="edge-label">1</text><line x1="403" y1="527" x2="403" y2="589" class="edge"/><text x="408" y="563" class="edge-label">1</text><line x1="403" y1="589" x2="403" y2="651" class="edge"/><text x="408" y="625" class="edge-label">1</text><line x1="465" y1="31" x2="465" y2="93" class="edge"/><text x="470" y="67" class="edge-label">1</text><line x1="465" y1="93" x2="465" y2="155" class="edge"/><text x="470" y="129" class="edge-label">1</text><line x1="465" y1="155" x2="465" y2="217" class="edge"/><text x="470" y="191" class="edge-label">1</text><line x1="465" y1="217" x2="465" y2="279" class="edge"/><text x="470" y="253" class="edge-label">1</text><line x1="465" y1="279" x2="465" y2="341" class="edge"/><text x="470" y="315" class="edge-label">1</text><line x1="465" y1="341" x2="465" y2="403" class="edge"/><text x="470" y="377" class="edge-label">1</text><line x1="465" y1="403" x2="465" y2="465" class="edge"/><text x="470" y="439" class="edge-label">1</text><line x1="465" y1="465" x2="465" y2="527" class="edge"/><text x="470" y="501" class="edge-label">1</text><line x1="465" y1="527" x2="465" y2="589" class="edge"/><text x="470" y="563" class="edge-label">1</text><line x1="465" y1="589" x2="465" y2="651" class="edge"/><text x="470" y="625" class="edge-label">1</text><line x1="527" y1="31" x2="527" y2="93" class="edge"/><text x="532" y="67" class="edge-label">1</text><line x1="527" y1="93" x2="527" y2="155" class="edge"/><text x="532" y="129" class="edge-label">1</text><line x1="527" y1="155" x2="527" y2="217" class="edge"/><text x="532" y="191" class="edge-label">1</text><line x1="527" y1="217" x2="527" y2="279" class="edge"/><text x="532" y="253" class="edge-label">1</text><line x1="527" y1="279" x2="527" y2="341" class="edge"/><text x="532" y="315" class="edge-label">1</text><line x1="527" y1="341" x2="527" y2="403" class="edge"/><text x="532" y="377" class="edge-label">1</text><line x1="527" y1="403" x2="527" y2="465" class="edge"/><text x="532" y="439" class="edge-label">1</text><line x1="527" y1="465" x2="527" y2="527" class="edge"/><text x="532" y="501" class="edge-label">1</text><line x1="527" y1="527" x2="527" y2="589" class="edge"/><text x="532" y="563" class="edge-label">1</text><line x1="527" y1="589" x2="527" y2="651" class="edge"/><text x="532" y="625" class="edge-label">1</text><line x1="589" y1="31" x2="589" y2="93" class="edge"/><text x="594" y="67" class="edge-label">1</text><line x1="589" y1="93" x2="589" y2="155" class="edge"/><text x="594" y="129" class="edge-label">1</text><line x1="589" y1="155" x2="589" y2="217" class="edge"/><text x="594" y="191" class="edge-label">1</text><line x1="589" y1="217" x2="589" y2="279" class="edge"/><text x="594" y="253" class="edge-label">1</text><line x1="589" y1="279" x2="589" y2="341" class="edge"/><text x="594" y="315" class="edge-label">1</text><line x1="589" y1="341" x2="589" y2="403" class="edge"/><text x="594" y="377" class="edge-label">1</text><line x1="589" y1="403" x2="589" y2="465" class="edge"/><text x="594" y="439" class="edge-label">1</text><line x1="589" y1="465" x2="589" y2="527" class="edge"/><text x="594" y="501" class="edge-label">1</text><line x1="589" y1="527" x2="589" y2="589" class="edge"/><text x="594" y="563" class="edge-label">1</text><line x1="589" y1="589" x2="589" y2="651" class="edge"/><text x="594" y="625" class="edge-label">1</text><line x1="651" y1="31" x2="651" y2="93" class="edge"/><text x="656" y="67" class="edge-label">1</text><line x1="651" y1="93" x2="651" y2="155" class="edge"/><text x="656" y="129" class="edge-label">1</text><line x1="651" y1="155" x2="651" y2="217" class="edge"/><text x="656" y="191" class="edge-label">1</text><line x1="651" y1="217" x2="651" y2="279" class="edge"/><text x="656" y="253" class="edge-label">1</text><line x1="651" y1="279" x2="651" y2="341" class="edge"/><text x="656" y="315" class="edge-label">1</text><line x1="651" y1="341" x2="651" y2="403" class="edge"/><text x="656" y="377" class="edge-label">1</text><line x1="651" y1="403" x2="651" y2="465" class="edge"/><text x="656" y="439" class="edge-label">1</text><line x1="651" y1="465" x2="651" y2="527" class="edge"/><text x="656" y="501" class="edge-label">1</text><line x1="651" y1="527" x2="651" y2="589" class="edge"/><text x="656" y="563" class="edge-label">1</text><line x1="651" y1="589" x2="651" y2="651" class="edge"/><text x="656" y="625" class="edge-label">1</text><line x1="713" y1="31" x2="713" y2="93" class="edge"/><text x="718" y="67" class="edge-label">1</text><line x1="713" y1="93" x2="713" y2="155" class="edge"/><text x="718" y="129" class="edge-label">1</text><line x1="713" y1="155" x2="713" y2="217" class="edge"/><text x="718" y="191" class="edge-label">1</text><line x1="713" y1="217" x2="713" y2="279" class="edge"/><text x="718" y="253" class="edge-label">1</text><line x1="713" y1="279" x2="713" y2="341" class="edge"/><text x="718" y="315" class="edge-label">1</text><line x1="713" y1="341" x2="713" y2="403" class="edge"/><text x="718" y="377" class="edge-label">1</text><line x1="713" y1="403" x2="713" y2="465" class="edge"/><text x="718" y="439" class="edge-label">1</text><line x1="713" y1="465" x2="713" y2="527" class="edge"/><text x="718" y="501" class="edge-label">1</text><line x1="713" y1="527" x2="713" y2="589" class="edge"/><text x="718" y="563" class="edge-label">1</text><line x1="713" y1="589" x2="713" y2="651" class="edge"/><text x="718" y="625" class="edge-label">1</text><line x1="775" y1="31" x2="775" y2="93" class="edge"/><text x="780" y="67" class="edge-label">1</text><line x1="775" y1="93" x2="775" y2="155" class="edge"/><text x="780" y="129" class="edge-label">1</text><line x1="775" y1="155" x2="775" y2="217" class="edge"/><text x="780" y="191" class="edge-label">1</text><line x1="775" y1="217" x2="775" y2="279" class="edge"/><text x="780" y="253" class="edge-label">1</text><line x1="775" y1="279" x2="775" y2="341" class="edge"/><text x="780" y="315" class="edge-label">1</text><line x1="775" y1="341" x2="775" y2="403" class="edge"/><text x="780" y="377" class="edge-label">1</text><line x1="775" y1="403" x2="775" y2="465" class="edge"/><text x="780" y="439" class="edge-label">1</text><line x1="775" y1="465" x2="775" y2="527" class="edge"/><text x="780" y="501" class="edge-label">1</text><line x1="775" y1="527" x2="775" y2="589" class="edge"/><text x="780" y="563" class="edge-label">1</text><line x1="775" y1="589" x2="775" y2="651" class="edge"/><text x="780" y="625" class="edge-label">1</text><line x1="837" y1="31" x2="837" y2="93" class="edge"/><text x="842" y="67" class="edge-label">1</text><line x1="837" y1="93" x2="837" y2="155" class="edge"/><text x="842" y="129" class="edge-label">1</text><line x1="837" y1="155" x2="837" y2="217" class="edge"/><text x="842" y="191" class="edge-label">1</text><line x1="837" y1="217" x2="837" y2="279" class="edge"/><text x="842" y="253" class="edge-label">1</text><line x1="837" y1="279" x2="837" y2="341" class="edge"/><text x="842" y="315" class="edge-label">1</text><line x1="837" y1="341" x2="837" y2="403" class="edge"/><text x="842" y="377" class="edge-label">1</text><line x1="837" y1="403" x2="837" y2="465" class="edge"/><text x="842" y="439" class="edge-label">1</text><line x1="837" y1="465" x2="837" y2="527" class="edge"/><text x="842" y="501" class="edge-label">1</text><line x1="837" y1="527" x2="837" y2="589" class="edge"/><text x="842" y="563" class="edge-label">1</text><line x1="837" y1="589" x2="837" y2="651" class="edge"/><text x="842" y="625" class="edge-label">1</text><line x1="899" y1="31" x2="899" y2="93" class="edge"/><text x="904" y="67" class="edge-label">1</text><line x1="899" y1="93" x2="899" y2="155" class="edge"/><text x="904" y="129" class="edge-label">1</text><line x1="899" y1="155" x2="899" y2="217" class="edge"/><text x="904" y="191" class="edge-label">1</text><line x1="899" y1="217" x2="899" y2="279" class="edge"/><text x="904" y="253" class="edge-label">1</text><line x1="899" y1="279" x2="899" y2="341" class="edge"/><text x="904" y="315" class="edge-label">1</text><line x1="899" y1="341" x2="899" y2="403" class="edge"/><text x="904" y="377" class="edge-label">1</text><line x1="899" y1="403" x2="899" y2="465" class="edge"/><text x="904" y="439" class="edge-label">1</text><line x1="899" y1="465" x2="899" y2="527" class="edge"/><text x="904" y="501" class="edge-label">1</text><line x1="899" y1="527" x2="899" y2="589" class="edge"/><text x="904" y="563" class="edge-label">1</text><line x1="899" y1="589" x2="899" y2="651" class="edge"/><text x="904" y="625" class="edge-label">1</text></svg></div>
+</div>
+            <div class="results-panel">
+                <h2>Select Path to Animate</h2>
+                <div id="pathSelector"><button class="path-btn" data-route-id="0-0">Store 1 to Customer 1 (Cost: 75)</button>
+<button class="path-btn" data-route-id="0-1">Store 1 to Customer 2 (Cost: 68)</button>
+<button class="path-btn" data-route-id="0-2">Store 1 to Customer 3 (Cost: 28)</button>
+<button class="path-btn" data-route-id="0-3">Store 1 to Customer 4 (Cost: 95)</button>
+<button class="path-btn" data-route-id="0-4">Store 1 to Customer 5 (Cost: 82)</button>
+</div>
+                <h3>Search Results</h3>
+                <div id="results"><div class="store-assignment"><strong>Store 1 to Customers [0, 1, 2, 3, 4]</strong><br><div class="route-info">Customer 1: Cost = 75</div><div class="route-info">Customer 2: Cost = 68</div><div class="route-info">Customer 3: Cost = 28</div><div class="route-info">Customer 4: Cost = 95</div><div class="route-info">Customer 5: Cost = 82</div><div class="route-info" style="color:#10b981;font-weight:bold;">Store Total: 348</div></div><div class="total-cost">Total Cost: 348</div></div>
+                <div class="legend">
+                    <h3>Legend</h3>
+                    <div class="legend-item"><span class="legend-box store">Store</span> Store</div>
+                    <div class="legend-item"><span class="legend-box customer">Customer</span> Customer</div>
+                    <div class="legend-item"><span class="legend-box tunnel">Tunnel 1</span> Tunnel Entrance</div>
+                    <div class="legend-item"><span class="legend-box blocked">Blocked</span> Blocked Road</div>
+                    <div class="legend-item"><span class="legend-box truck">Truck</span> Truck</div>
+                    <div class="legend-item"><span class="legend-box edge-label">3</span> Traffic Cost</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const routes = [{"id":"0-0","forwardSteps":75,"steps":[{"x":0,"y":9},{"x":0,"y":10},{"x":1,"y":10},{"x":1,"y":9},{"x":1,"y":8},{"x":1,"y":7},{"x":1,"y":6},{"x":1,"y":5},{"x":1,"y":4},{"x":1,"y":3},{"x":1,"y":2},{"x":1,"y":1},{"x":1,"y":0},{"x":2,"y":0},{"x":2,"y":1},{"x":2,"y":2},{"x":2,"y":3},{"x":2,"y":4},{"x":2,"y":5},{"x":2,"y":6},{"x":2,"y":7},{"x":2,"y":8},{"x":2,"y":9},{"x":2,"y":10},{"x":3,"y":10},{"x":3,"y":9},{"x":3,"y":8},{"x":3,"y":7},{"x":3,"y":6},{"x":3,"y":5},{"x":3,"y":4},{"x":3,"y":3},{"x":3,"y":2},{"x":3,"y":1},{"x":3,"y":0},{"x":4,"y":0},{"x":4,"y":1},{"x":4,"y":2},{"x":4,"y":3},{"x":4,"y":4},{"x":4,"y":5},{"x":4,"y":6},{"x":4,"y":7},{"x":4,"y":8},{"x":4,"y":9},{"x":4,"y":10},{"x":5,"y":10},{"x":5,"y":9},{"x":5,"y":8},{"x":5,"y":7},{"x":5,"y":6},{"x":5,"y":5},{"x":5,"y":4},{"x":5,"y":3},{"x":5,"y":2},{"x":5,"y":1},{"x":5,"y":0},{"x":6,"y":0},{"x":6,"y":1},{"x":6,"y":2},{"x":6,"y":3},{"x":6,"y":4},{"x":6,"y":5},{"x":6,"y":6},{"x":6,"y":7},{"x":6,"y":8},{"x":6,"y":9},{"x":6,"y":10},{"x":7,"y":10},{"x":7,"y":9},{"x":7,"y":8},{"x":7,"y":7},{"x":7,"y":6},{"x":7,"y":5},{"x":7,"y":4},{"x":7,"y":3},{"x":7,"y":4},{"x":7,"y":5},{"x":7,"y":6},{"x":7,"y":7},{"x":7,"y":8},{"x":7,"y":9},{"x":7,"y":10},{"x":6,"y":10},{"x":6,"y":9},{"x":6,"y":8},{"x":6,"y":7},{"x":6,"y":6},{"x":6,"y":5},{"x":6,"y":4},{"x":6,"y":3},{"x":6,"y":2},{"x":6,"y":1},{"x":6,"y":0},{"x":5,"y":0},{"x":5,"y":1},{"x":5,"y":2},{"x":5,"y":3},{"x":5,"y":4},{"x":5,"y":5},{"x":5,"y":6},{"x":5,"y":7},{"x":5,"y":8},{"x":5,"y":9},{"x":5,"y":10},{"x":4,"y":10},{"x":4,"y":9},{"x":4,"y":8},{"x":4,"y":7},{"x":4,"y":6},{"x":4,"y":5},{"x":4,"y":4},{"x":4,"y":3},{"x":4,"y":2},{"x":4,"y":1},{"x":4,"y":0},{"x":3,"y":0},{"x":3,"y":1},{"x":3,"y":2},{"x":3,"y":3},{"x":3,"y":4},{"x":3,"y":5},{"x":3,"y":6},{"x":3,"y":7},{"x":3,"y":8},{"x":3,"y":9},{"x":3,"y":10},{"x":2,"y":10},{"x":2,"y":9},{"x":2,"y":8},{"x":2,"y":7},{"x":2,"y":6},{"x":2,"y":5},{"x":2,"y":4},{"x":2,"y":3},{"x":2,"y":2},{"x":2,"y":1},{"x":2,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":1,"y":2},{"x":1,"y":3},{"x":1,"y":4},{"x":1,"y":5},{"x":1,"y":6},{"x":1,"y":7},{"x":1,"y":8},{"x":1,"y":9},{"x":1,"y":10},{"x":0,"y":10},{"x":0,"y":9}]},{"id":"0-1","forwardSteps":68,"steps":[{"x":0,"y":9},{"x":0,"y":10},{"x":1,"y":10},{"x":1,"y":9},{"x":1,"y":8},{"x":1,"y":7},{"x":1,"y":6},{"x":1,"y":5},{"x":1,"y":4},{"x":1,"y":3},{"x":1,"y":2},{"x":1,"y":1},{"x":1,"y":0},{"x":2,"y":0},{"x":2,"y":1},{"x":2,"y":2},{"x":2,"y":3},{"x":2,"y":4},{"x":2,"y":5},{"x":2,"y":6},{"x":2,"y":7},{"x":2,"y":8},{"x":2,"y":9},{"x":2,"y":10},{"x":3,"y":10},{"x":3,"y":9},{"x":3,"y":8},{"x":3,"y":7},{"x":3,"y":6},{"x":3,"y":5},{"x":3,"y":4},{"x":3,"y":3},{"x":3,"y":2},{"x":3,"y":1},{"x":3,"y":0},{"x":4,"y":0},{"x":4,"y":1},{"x":4,"y":2},{"x":4,"y":3},{"x":4,"y":4},{"x":4,"y":5},{"x":4,"y":6},{"x":4,"y":7},{"x":4,"y":8},{"x":4,"y":9},{"x":4,"y":10},{"x":5,"y":10},{"x":5,"y":9},{"x":5,"y":8},{"x":5,"y":7},{"x":5,"y":6},{"x":5,"y":5},{"x":5,"y":4},{"x":5,"y":3},{"x":5,"y":2},{"x":5,"y":1},{"x":5,"y":0},{"x":6,"y":0},{"x":6,"y":1},{"x":6,"y":2},{"x":6,"y":3},{"x":6,"y":4},{"x":6,"y":5},{"x":6,"y":6},{"x":6,"y":7},{"x":6,"y":8},{"x":6,"y":9},{"x":6,"y":10},{"x":7,"y":10},{"x":6,"y":10},{"x":6,"y":9},{"x":6,"y":8},{"x":6,"y":7},{"x":6,"y":6},{"x":6,"y":5},{"x":6,"y":4},{"x":6,"y":3},{"x":6,"y":2},{"x":6,"y":1},{"x":6,"y":0},{"x":5,"y":0},{"x":5,"y":1},{"x":5,"y":2},{"x":5,"y":3},{"x":5,"y":4},{"x":5,"y":5},{"x":5,"y":6},{"x":5,"y":7},{"x":5,"y":8},{"x":5,"y":9},{"x":5,"y":10},{"x":4,"y":10},{"x":4,"y":9},{"x":4,"y":8},{"x":4,"y":7},{"x":4,"y":6},{"x":4,"y":5},{"x":4,"y":4},{"x":4,"y":3},{"x":4,"y":2},{"x":4,"y":1},{"x":4,"y":0},{"x":3,"y":0},{"x":3,"y":1},{"x":3,"y":2},{"x":3,"y":3},{"x":3,"y":4},{"x":3,"y":5},{"x":3,"y":6},{"x":3,"y":7},{"x":3,"y":8},{"x":3,"y":9},{"x":3,"y":10},{"x":2,"y":10},{"x":2,"y":9},{"x":2,"y":8},{"x":2,"y":7},{"x":2,"y":6},{"x":2,"y":5},{"x":2,"y":4},{"x":2,"y":3},{"x":2,"y":2},{"x":2,"y":1},{"x":2,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":1,"y":2},{"x":1,"y":3},{"x":1,"y":4},{"x":1,"y":5},{"x":1,"y":6},{"x":1,"y":7},{"x":1,"y":8},{"x":1,"y":9},{"x":1,"y":10},{"x":0,"y":10},{"x":0,"y":9}]},{"id":"0-2","forwardSteps":28,"steps":[{"x":0,"y":9},{"x":0,"y":10},{"x":1,"y":10},{"x":1,"y":9},{"x":1,"y":8},{"x":1,"y":7},{"x":1,"y":6},{"x":1,"y":5},{"x":1,"y":4},{"x":1,"y":3},{"x":1,"y":2},{"x":1,"y":1},{"x":1,"y":0},{"x":2,"y":0},{"x":2,"y":1},{"x":2,"y":2},{"x":2,"y":3},{"x":2,"y":4},{"x":2,"y":5},{"x":2,"y":6},{"x":2,"y":7},{"x":2,"y":8},{"x":2,"y":9},{"x":2,"y":10},{"x":3,"y":10},{"x":3,"y":9},{"x":3,"y":8},{"x":3,"y":7},{"x":3,"y":6},{"x":3,"y":7},{"x":3,"y":8},{"x":3,"y":9},{"x":3,"y":10},{"x":2,"y":10},{"x":2,"y":9},{"x":2,"y":8},{"x":2,"y":7},{"x":2,"y":6},{"x":2,"y":5},{"x":2,"y":4},{"x":2,"y":3},{"x":2,"y":2},{"x":2,"y":1},{"x":2,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":1,"y":2},{"x":1,"y":3},{"x":1,"y":4},{"x":1,"y":5},{"x":1,"y":6},{"x":1,"y":7},{"x":1,"y":8},{"x":1,"y":9},{"x":1,"y":10},{"x":0,"y":10},{"x":0,"y":9}]},{"id":"0-3","forwardSteps":95,"steps":[{"x":0,"y":9},{"x":0,"y":10},{"x":1,"y":10},{"x":1,"y":9},{"x":1,"y":8},{"x":1,"y":7},{"x":1,"y":6},{"x":1,"y":5},{"x":1,"y":4},{"x":1,"y":3},{"x":1,"y":2},{"x":1,"y":1},{"x":1,"y":0},{"x":2,"y":0},{"x":2,"y":1},{"x":2,"y":2},{"x":2,"y":3},{"x":2,"y":4},{"x":2,"y":5},{"x":2,"y":6},{"x":2,"y":7},{"x":2,"y":8},{"x":2,"y":9},{"x":2,"y":10},{"x":3,"y":10},{"x":3,"y":9},{"x":3,"y":8},{"x":3,"y":7},{"x":3,"y":6},{"x":3,"y":5},{"x":3,"y":4},{"x":3,"y":3},{"x":3,"y":2},{"x":3,"y":1},{"x":3,"y":0},{"x":4,"y":0},{"x":4,"y":1},{"x":4,"y":2},{"x":4,"y":3},{"x":4,"y":4},{"x":4,"y":5},{"x":4,"y":6},{"x":4,"y":7},{"x":4,"y":8},{"x":4,"y":9},{"x":4,"y":10},{"x":5,"y":10},{"x":5,"y":9},{"x":5,"y":8},{"x":5,"y":7},{"x":5,"y":6},{"x":5,"y":5},{"x":5,"y":4},{"x":5,"y":3},{"x":5,"y":2},{"x":5,"y":1},{"x":5,"y":0},{"x":6,"y":0},{"x":6,"y":1},{"x":6,"y":2},{"x":6,"y":3},{"x":6,"y":4},{"x":6,"y":5},{"x":6,"y":6},{"x":6,"y":7},{"x":6,"y":8},{"x":6,"y":9},{"x":6,"y":10},{"x":7,"y":10},{"x":7,"y":9},{"x":7,"y":8},{"x":7,"y":7},{"x":7,"y":6},{"x":7,"y":5},{"x":7,"y":4},{"x":7,"y":3},{"x":7,"y":2},{"x":7,"y":1},{"x":7,"y":0},{"x":8,"y":0},{"x":8,"y":1},{"x":8,"y":2},{"x":8,"y":3},{"x":8,"y":4},{"x":8,"y":5},{"x":8,"y":6},{"x":8,"y":7},{"x":8,"y":8},{"x":8,"y":9},{"x":8,"y":10},{"x":9,"y":10},{"x":9,"y":9},{"x":9,"y":8},{"x":9,"y":7},{"x":9,"y":6},{"x":9,"y":5},{"x":9,"y":6},{"x":9,"y":7},{"x":9,"y":8},{"x":9,"y":9},{"x":9,"y":10},{"x":8,"y":10},{"x":8,"y":9},{"x":8,"y":8},{"x":8,"y":7},{"x":8,"y":6},{"x":8,"y":5},{"x":8,"y":4},{"x":8,"y":3},{"x":8,"y":2},{"x":8,"y":1},{"x":8,"y":0},{"x":7,"y":0},{"x":7,"y":1},{"x":7,"y":2},{"x":7,"y":3},{"x":7,"y":4},{"x":7,"y":5},{"x":7,"y":6},{"x":7,"y":7},{"x":7,"y":8},{"x":7,"y":9},{"x":7,"y":10},{"x":6,"y":10},{"x":6,"y":9},{"x":6,"y":8},{"x":6,"y":7},{"x":6,"y":6},{"x":6,"y":5},{"x":6,"y":4},{"x":6,"y":3},{"x":6,"y":2},{"x":6,"y":1},{"x":6,"y":0},{"x":5,"y":0},{"x":5,"y":1},{"x":5,"y":2},{"x":5,"y":3},{"x":5,"y":4},{"x":5,"y":5},{"x":5,"y":6},{"x":5,"y":7},{"x":5,"y":8},{"x":5,"y":9},{"x":5,"y":10},{"x":4,"y":10},{"x":4,"y":9},{"x":4,"y":8},{"x":4,"y":7},{"x":4,"y":6},{"x":4,"y":5},{"x":4,"y":4},{"x":4,"y":3},{"x":4,"y":2},{"x":4,"y":1},{"x":4,"y":0},{"x":3,"y":0},{"x":3,"y":1},{"x":3,"y":2},{"x":3,"y":3},{"x":3,"y":4},{"x":3,"y":5},{"x":3,"y":6},{"x":3,"y":7},{"x":3,"y":8},{"x":3,"y":9},{"x":3,"y":10},{"x":2,"y":10},{"x":2,"y":9},{"x":2,"y":8},{"x":2,"y":7},{"x":2,"y":6},{"x":2,"y":5},{"x":2,"y":4},{"x":2,"y":3},{"x":2,"y":2},{"x":2,"y":1},{"x":2,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":1,"y":2},{"x":1,"y":3},{"x":1,"y":4},{"x":1,"y":5},{"x":1,"y":6},{"x":1,"y":7},{"x":1,"y":8},{"x":1,"y":9},{"x":1,"y":10},{"x":0,"y":10},{"x":0,"y":9}]},{"id":"0-4","forwardSteps":82,"steps":[{"x":0,"y":9},{"x":0,"y":10},{"x":1,"y":10},{"x":1,"y":9},{"x":1,"y":8},{"x":1,"y":7},{"x":1,"y":6},{"x":1,"y":5},{"x":1,"y":4},{"x":1,"y":3},{"x":1,"y":2},{"x":1,"y":1},{"x":1,"y":0},{"x":2,"y":0},{"x":2,"y":1},{"x":2,"y":2},{"x":2,"y":3},{"x":2,"y":4},{"x":2,"y":5},{"x":2,"y":6},{"x":2,"y":7},{"x":2,"y":8},{"x":2,"y":9},{"x":2,"y":10},{"x":3,"y":10},{"x":3,"y":9},{"x":3,"y":8},{"x":3,"y":7},{"x":3,"y":6},{"x":3,"y":5},{"x":3,"y":4},{"x":3,"y":3},{"x":3,"y":2},{"x":3,"y":1},{"x":3,"y":0},{"x":4,"y":0},{"x":4,"y":1},{"x":4,"y":2},{"x":4,"y":3},{"x":4,"y":4},{"x":4,"y":5},{"x":4,"y":6},{"x":4,"y":7},{"x":4,"y":8},{"x":4,"y":9},{"x":4,"y":10},{"x":5,"y":10},{"x":5,"y":9},{"x":5,"y":8},{"x":5,"y":7},{"x":5,"y":6},{"x":5,"y":5},{"x":5,"y":4},{"x":5,"y":3},{"x":5,"y":2},{"x":5,"y":1},{"x":5,"y":0},{"x":6,"y":0},{"x":6,"y":1},{"x":6,"y":2},{"x":6,"y":3},{"x":6,"y":4},{"x":6,"y":5},{"x":6,"y":6},{"x":6,"y":7},{"x":6,"y":8},{"x":6,"y":9},{"x":6,"y":10},{"x":7,"y":10},{"x":7,"y":9},{"x":7,"y":8},{"x":7,"y":7},{"x":7,"y":6},{"x":7,"y":5},{"x":7,"y":4},{"x":7,"y":3},{"x":7,"y":2},{"x":7,"y":1},{"x":7,"y":0},{"x":8,"y":0},{"x":8,"y":1},{"x":8,"y":2},{"x":8,"y":3},{"x":8,"y":2},{"x":8,"y":1},{"x":8,"y":0},{"x":7,"y":0},{"x":7,"y":1},{"x":7,"y":2},{"x":7,"y":3},{"x":7,"y":4},{"x":7,"y":5},{"x":7,"y":6},{"x":7,"y":7},{"x":7,"y":8},{"x":7,"y":9},{"x":7,"y":10},{"x":6,"y":10},{"x":6,"y":9},{"x":6,"y":8},{"x":6,"y":7},{"x":6,"y":6},{"x":6,"y":5},{"x":6,"y":4},{"x":6,"y":3},{"x":6,"y":2},{"x":6,"y":1},{"x":6,"y":0},{"x":5,"y":0},{"x":5,"y":1},{"x":5,"y":2},{"x":5,"y":3},{"x":5,"y":4},{"x":5,"y":5},{"x":5,"y":6},{"x":5,"y":7},{"x":5,"y":8},{"x":5,"y":9},{"x":5,"y":10},{"x":4,"y":10},{"x":4,"y":9},{"x":4,"y":8},{"x":4,"y":7},{"x":4,"y":6},{"x":4,"y":5},{"x":4,"y":4},{"x":4,"y":3},{"x":4,"y":2},{"x":4,"y":1},{"x":4,"y":0},{"x":3,"y":0},{"x":3,"y":1},{"x":3,"y":2},{"x":3,"y":3},{"x":3,"y":4},{"x":3,"y":5},{"x":3,"y":6},{"x":3,"y":7},{"x":3,"y":8},{"x":3,"y":9},{"x":3,"y":10},{"x":2,"y":10},{"x":2,"y":9},{"x":2,"y":8},{"x":2,"y":7},{"x":2,"y":6},{"x":2,"y":5},{"x":2,"y":4},{"x":2,"y":3},{"x":2,"y":2},{"x":2,"y":1},{"x":2,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":1,"y":2},{"x":1,"y":3},{"x":1,"y":4},{"x":1,"y":5},{"x":1,"y":6},{"x":1,"y":7},{"x":1,"y":8},{"x":1,"y":9},{"x":1,"y":10},{"x":0,"y":10},{"x":0,"y":9}]}];
+let currentRoute = null;
+let currentStep = 0;
+let isPlaying = false;
+let interval = null;
+let speed = 800;
+
+function resetGrid() {
+    document.querySelectorAll('.cell').forEach(c => {
+        c.classList.remove('truck', 'path-forward', 'path-return');
+        const type = c.dataset.type;
+        if (type) c.classList.add(type);
+    });
+    document.querySelectorAll('.path-line').forEach(l => l.remove());
+}
+
+function getCell(x, y) {
+    return document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+}
+
+function drawLine(from, to, isReturn) {
+    const svg = document.querySelector('.edge-overlay');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', from.x * 62 + 31);
+    line.setAttribute('y1', from.y * 62 + 31);
+    line.setAttribute('x2', to.x * 62 + 31);
+    line.setAttribute('y2', to.y * 62 + 31);
+    line.classList.add('path-line', isReturn ? 'path-return' : 'path-forward');
+    svg.appendChild(line);
+}
+
+function showStep() {
+    if (!currentRoute || currentStep >= currentRoute.steps.length) {
+        stop();
+        return;
+    }
+
+    const step = currentRoute.steps[currentStep];
+    const cell = getCell(step.x, step.y);
+    if (cell) {
+        cell.classList.add('truck');
+        const icon = cell.querySelector('i') || document.createElement('i');
+        icon.className = 'fas fa-truck';
+        if (!cell.querySelector('i')) cell.appendChild(icon);
+    }
+
+    if (currentStep > 0) {
+        const prev = currentRoute.steps[currentStep - 1];
+        const isReturn = currentStep > currentRoute.forwardSteps;
+        drawLine(prev, step, isReturn);
+    }
+
+    currentStep++;
+}
+
+function play() {
+    if (isPlaying || !currentRoute) return;
+    isPlaying = true;
+    document.getElementById('playBtn').style.display = 'none';
+    document.getElementById('pauseBtn').style.display = 'inline-block';
+    interval = setInterval(showStep, speed);
+}
+
+function stop() {
+    isPlaying = false;
+    clearInterval(interval);
+    document.getElementById('playBtn').style.display = 'inline-block';
+    document.getElementById('pauseBtn').style.display = 'none';
+}
+
+function reset() {
+    stop();
+    currentStep = 0;
+    resetGrid();
+    currentRoute = null;
+    document.querySelectorAll('.path-btn').forEach(b => b.classList.remove('selected'));
+}
+
+// Button listeners
+document.getElementById('nextBtn').addEventListener('click', () => currentRoute && showStep());
+document.getElementById('playBtn').addEventListener('click', play);
+document.getElementById('pauseBtn').addEventListener('click', stop);
+document.getElementById('resetBtn').addEventListener('click', reset);
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+    speed = parseInt(e.target.value);
+    document.getElementById('speedValue').textContent = speed + 'ms';
+    if (isPlaying) { stop(); play(); }
+});
+
+// Path selection
+document.querySelectorAll('.path-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        reset();
+        const id = btn.dataset.routeId;
+        currentRoute = routes.find(r => r.id === id);
+        if (currentRoute) {
+            document.querySelectorAll('.path-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            showStep();
+        }
+    });
+});
+
+setTimeout(() => document.querySelector('.path-btn')?.click(), 500);
+
+    </script>
+</body>
+</html>

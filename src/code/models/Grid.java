@@ -26,10 +26,18 @@ public class Grid {
         return cost != null ? cost : 1;
     }
 
+    public List<Tunnel> getTunnels() {
+        return tunnels;
+    }
+
     public boolean isBlocked(Point from, Point to) {
         return getTrafficCost(from, to) == 0;
     }
 
+    public int getTrafficLevel(Point from, Point to) {
+        String key = edgeKey(from, to);
+        return trafficLevels.getOrDefault(key, 1);
+    }
     public void addTraffic(Point from, Point to, int level) {
         String key = edgeKey(from, to);
         trafficLevels.put(key, level);
@@ -47,16 +55,16 @@ public class Grid {
     public void addCustomer(Point customer) {
         customers.add(customer);
     }
-    
+    //a point can't be an enterance for more than one tunnel
     public Tunnel getTunnelAt(Point position) {
         return tunnels.stream().filter(t -> t.hasEntrance(position)).findFirst().orElse(null);
     }
 
-    public List<Tunnel> getTunnelsAt(Point position) {  
+   /* public List<Tunnel> getTunnelsAt(Point position) {  
     return tunnels.stream()
         .filter(t -> t.hasEntrance(position))
         .collect(Collectors.toList());  
-    }
+    }*/
 
     public List<Point> getStores() { return stores; }
     public List<Point> getCustomers() { return customers; }

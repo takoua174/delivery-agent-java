@@ -2,7 +2,6 @@ package code.search;
 
 import code.delivery.State;
 import java.util.*;
-
 public class GenericSearch {
     private int nodesExpanded = 0;
 
@@ -12,16 +11,21 @@ public class GenericSearch {
         nodes.add(makeNode(problem.getInitialState()));
         //explored ensures I don’t expand the same state twice,
         Set<State> explored = new HashSet<>();
-
+        int depthLimit = Integer.MAX_VALUE;
+        if (queuingFn instanceof DepthLimited) {
+            depthLimit = ((DepthLimited) queuingFn).getDepthLimit();
+        }
         while (!nodes.isEmpty()) {
             Node node = nodes.poll();
             if (problem.goalTest(node.getState())) {
                 return node;
             }
-            if (!explored.contains(node.getState())) {
-                explored.add(node.getState());
-                List<Node> expanded = expand(node, problem);
-                nodes = queuingFn.insert(expanded, nodes);
+            if (node.getDepth() <= depthLimit) {
+                if (!explored.contains(node.getState())) {
+                    explored.add(node.getState());
+                    List<Node> expanded = expand(node, problem);
+                    nodes = queuingFn.insert(expanded, nodes);
+                }
             }
         }
         return null;

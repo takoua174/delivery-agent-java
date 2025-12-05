@@ -26,7 +26,7 @@ public class DeliverySearch extends GenericSearch implements Problem {
         Point pos = state.getCurrentLocation();
         String[] dirs = {"up", "down", "left", "right"};
         int[] dx = {0, 0, -1, 1};
-        int[] dy = {-1, 1, 0, 0};
+        int[] dy = {1, -1, 0, 0};
         for (int i = 0; i < 4; i++) {
             Point next = new Point(pos.getX() + dx[i], pos.getY() + dy[i]);
             if (grid.isValidPosition(next) && !grid.isBlocked(pos, next)) {
@@ -52,8 +52,8 @@ public class DeliverySearch extends GenericSearch implements Problem {
         }
         int dx = 0, dy = 0;
         switch (operator) {
-            case "up": dy = -1; break;
-            case "down": dy = 1; break;
+            case "up": dy = 1; break;
+            case "down": dy = -1; break;
             case "left": dx = -1; break;
             case "right": dx = 1; break;
         }
@@ -87,13 +87,26 @@ public class DeliverySearch extends GenericSearch implements Problem {
         return (int) (1.5 * heuristic1(state));
     }
 
+    private String formatSolution(Node goal) {
+        List<String> path = goal.getPath();
+        List<String> returnPath = new ArrayList<>();
+        for (int i = path.size() - 1; i >= 0; i--) {
+            returnPath.add(reverseOp(path.get(i)));
+        }
+        String fullPath = String.join(",", path)
+                + "|RETURN|" + String.join(",", returnPath);
+
+        return fullPath + ";" + goal.getPathCost() + ";" + getNodesExpanded();
+    }
+
     public String solve(String strategy) {
+        if (strategy.equals("ID")) {
+            return solveIDS();
+        }
         QueuingFunction qf = getQueuingFunction(strategy);
         Node goal = search(this, qf);
-        if (goal == null) return "NoPath;999999;0";  // FIXED: High int, not "INF"
-        List<String> path = goal.getPath();
-        int oneWayCost = goal.getPathCost();
-        return String.join(",", path) + ";" + (2 * oneWayCost) + ";" + getNodesExpanded();
+        if (goal == null) return "NoPath"; 
+        return formatSolution(goal); 
     }
 
     private QueuingFunction getQueuingFunction(String strategy) {
@@ -105,17 +118,28 @@ public class DeliverySearch extends GenericSearch implements Problem {
             case "GR2" -> new GreedyQueuingFunction(this, 2);
             case "AS1" -> new AStarQueuingFunction(this, 1);
             case "AS2" -> new AStarQueuingFunction(this, 2);
-            case "ID" -> new IDSQueuingFunction();
             default -> throw new IllegalArgumentException("Unknown strategy: " + strategy);
         };
+    }
+    private String solveIDS() {
+        int maxDepth = grid.getWidth() * grid.getHeight();
+        Node result = null;
+
+        for (int depth = 0; depth <= maxDepth; depth++) {
+            result = depthLimitedSearch(depth);
+
+            if (result != null) {
+                return formatSolution(result);
+            }
+        }
+        return "NoPath;" + 0 + ";" + getNodesExpanded();
     }
 
     private static class BFSQueuingFunction implements QueuingFunction {
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
-            Queue<Node> newFrontier = new LinkedList<>(frontier);
-            newFrontier.addAll(expanded);
-            return newFrontier;
+            frontier.addAll(expanded);
+            return frontier;
         }
     }
 
@@ -146,6 +170,7 @@ public class DeliverySearch extends GenericSearch implements Problem {
 
         GreedyQueuingFunction(DeliverySearch search, int hNum) {
             this.search = search;
+            //which heuristic to use
             this.hNum = hNum;
         }
 
@@ -184,10 +209,37 @@ public class DeliverySearch extends GenericSearch implements Problem {
         }
     }
 
-    private static class IDSQueuingFunction implements QueuingFunction {
+    private Node depthLimitedSearch(int limit) {
+        QueuingFunction qf = new LimitedDepthSearchQueuingFunction(limit);
+        return new GenericSearch().search(this, qf);
+    }
+    
+    private String reverseOp(String op) {
+    return switch (op) {
+        case "up" -> "down";
+        case "down" -> "up";
+        case "left" -> "right";
+        case "right" -> "left";
+        case "tunnel" -> "tunnel"; 
+        default -> throw new IllegalArgumentException("Unknown operator: " + op);
+    };
+
+    }
+
+    private static class LimitedDepthSearchQueuingFunction implements QueuingFunction, DepthLimited {
+        private final int depthLimit;
+        private final DFSQueuingFunction dfs = new DFSQueuingFunction();
+
+        LimitedDepthSearchQueuingFunction(int depthLimit) {
+            this.depthLimit = depthLimit;
+        }
+
+        @Override
+        public int getDepthLimit() { return depthLimit; }
+
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
-            return new DFSQueuingFunction().insert(expanded, frontier);
+            return dfs.insert(expanded, frontier);
         }
     }
 }

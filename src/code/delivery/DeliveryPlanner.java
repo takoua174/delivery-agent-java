@@ -16,10 +16,9 @@ public class DeliveryPlanner {
         int P = customers.size();
         int S = stores.size();
 
-        // Cost matrix and assignment (unchanged, but uses parsed lists)
         Map<Integer, List<Integer>> assignment = new HashMap<>();
         int[][] costMatrix = new int[S][P];
-        Map<Point, String> mapOfPairResults = new HashMap<>();  // For visualize
+        Map<Point, String> mapOfPairResults = new HashMap<>();  
         for (int j = 0; j < P; j++) {
             int minCost = Integer.MAX_VALUE;
             int bestStore = -1;
@@ -38,6 +37,9 @@ public class DeliveryPlanner {
         }
 
         StringBuilder sb = new StringBuilder();
+        sb.append("Planning Results:\n");
+        sb.append("number of stores: ").append(stores.size()).append("\n");
+        sb.append("number of customers: ").append(customers.size()).append("\n");
         int totalCost = 0;
         for (Map.Entry<Integer, List<Integer>> entry : assignment.entrySet()) {
             int storeIdx = entry.getKey();
@@ -54,15 +56,14 @@ public class DeliveryPlanner {
                     visualizePath(stores.get(storeIdx), customers.get(custIdx), res[0].split(","));
                 }
             }
-            sb.append(plans.substring(0, plans.length() - 1)).append(";").append(truckCost).append(";").append("aggNodes\n");
+            sb.append(plans.substring(0, plans.length() - 1)).append(";Total cost of this store :").append(truckCost).append(";");
             totalCost += truckCost;
         }
         sb.append("TotalCost:").append(totalCost);
 
-        // Visualize with parsed grid
-        if (visualize) {
-            VisualizationUtil.showGridAndResults(grid, assignment, mapOfPairResults, true);
-        }
+    if (visualize) {
+        VisualizationUtil.showGridAndResults(grid, assignment, mapOfPairResults, true);
+    }
 
         return sb.toString();
     }

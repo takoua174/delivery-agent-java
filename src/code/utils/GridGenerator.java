@@ -58,6 +58,8 @@ public class GridGenerator {
                 int tr = rand.nextInt(5);  // traffic between 0-4
                 trafficSb.append(from.getX()).append(",").append(from.getY()).append(",")
                          .append(to.getX()).append(",").append(to.getY()).append(",").append(tr).append(";");
+                trafficSb.append(to.getX()).append(",").append(to.getY()).append(",")
+                 .append(from.getX()).append(",").append(from.getY()).append(",").append(tr).append(";");
             }
         }
         // Vertical
@@ -68,6 +70,8 @@ public class GridGenerator {
                 int tr = rand.nextInt(5);
                 trafficSb.append(from.getX()).append(",").append(from.getY()).append(",")
                          .append(to.getX()).append(",").append(to.getY()).append(",").append(tr).append(";");
+                trafficSb.append(to.getX()).append(",").append(to.getY()).append(",")
+                         .append(from.getX()).append(",").append(from.getY()).append(",").append(tr).append(";");
             }
         }
 

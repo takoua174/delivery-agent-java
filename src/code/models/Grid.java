@@ -60,11 +60,6 @@ public class Grid {
         return tunnels.stream().filter(t -> t.hasEntrance(position)).findFirst().orElse(null);
     }
 
-   /* public List<Tunnel> getTunnelsAt(Point position) {  
-    return tunnels.stream()
-        .filter(t -> t.hasEntrance(position))
-        .collect(Collectors.toList());  
-    }*/
 
     public List<Point> getStores() { return stores; }
     public List<Point> getCustomers() { return customers; }

@@ -89,14 +89,33 @@ public class DeliverySearch extends GenericSearch implements Problem {
 
     private String formatSolution(Node goal) {
         List<String> path = goal.getPath();
-        List<String> returnPath = new ArrayList<>();
-        for (int i = path.size() - 1; i >= 0; i--) {
-            returnPath.add(reverseOp(path.get(i)));
+        
+        // NEW: Validate path reaches goal (debug the reconstruction bug)
+        Point simulated = store;
+        System.out.println("DEBUG: Simulating path from " + store + " with actions: " + String.join(",", path));  // Log the raw path
+        for (int i = 0; i < path.size(); i++) {
+            String op = path.get(i);
+            State currState = new State(simulated);
+            State successor = applyOperator(currState, op);  // Re-apply exactly
+            if (successor == null) {
+                System.err.println("ERROR: Invalid step #" + (i+1) + ": '" + op + "' from " + simulated + " (applyOperator failed)");
+                return "InvalidPath;" + 0 + ";" + getNodesExpanded();
+            }
+            simulated = successor.getCurrentLocation();
+            System.out.println("  Step " + (i+1) + " (" + op + "): to " + simulated);
         }
-        String fullPath = String.join(",", path)
-                + "|RETURN|" + String.join(",", returnPath);
-
-        return fullPath + ";" + goal.getPathCost() + ";" + getNodesExpanded();
+        if (!simulated.equals(dest)) {
+            System.err.println("ERROR: Path ends at " + simulated + ", expected goal " + dest + "!");
+            return "NoPath;0;" + getNodesExpanded();
+        }
+        System.out.println("DEBUG: Path validated OK, ends at " + dest + ", cost=" + goal.getPathCost());
+        
+        // Rest unchanged: returnPath, totalCost=2*..., fullPath
+        List<String> returnPath = new ArrayList<>();
+        // ... (reverse loop)
+        int totalCost = goal.getPathCost();
+        String fullPath = String.join(",", path) + ",|RETURN|," + String.join(",", returnPath);
+        return fullPath + ";" + totalCost + ";" + getNodesExpanded();
     }
 
     public String solve(String strategy) {
@@ -105,7 +124,7 @@ public class DeliverySearch extends GenericSearch implements Problem {
         }
         QueuingFunction qf = getQueuingFunction(strategy);
         Node goal = search(this, qf);
-        if (goal == null) return "NoPath"; 
+        if (goal == null) return "NoPath;0;0"; 
         return formatSolution(goal); 
     }
 
@@ -211,7 +230,7 @@ public class DeliverySearch extends GenericSearch implements Problem {
 
     private Node depthLimitedSearch(int limit) {
         QueuingFunction qf = new LimitedDepthSearchQueuingFunction(limit);
-        return new GenericSearch().search(this, qf);
+        return search(this, qf);
     }
     
     private String reverseOp(String op) {

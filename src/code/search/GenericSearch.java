@@ -17,6 +17,7 @@ public class GenericSearch {
         }
         while (!nodes.isEmpty()) {
             Node node = nodes.poll();
+    
             if (problem.goalTest(node.getState())) {
                 return node;
             }

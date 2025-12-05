@@ -360,7 +360,21 @@ function resetGrid() {
     document.querySelectorAll('.cell').forEach(c => {
         c.classList.remove('truck', 'path-forward', 'path-return');
         const type = c.dataset.type;
-        if (type) c.classList.add(type);
+        if (type) {
+            c.classList.add(type);
+            // Restore original icon based on cell type
+            const icon = c.querySelector('i');
+            if (icon) {
+                if (type === 'store') icon.className = 'fas fa-store';
+                else if (type === 'customer') icon.className = 'fas fa-home';
+                else if (type === 'tunnel') icon.className = 'fas fa-subway';
+                else if (type === 'blocked') icon.className = 'fas fa-ban';
+            }
+        } else {
+            // Remove any truck icons from empty cells
+            const truckIcon = c.querySelector('i.fa-truck');
+            if (truckIcon) truckIcon.remove();
+        }
     });
     document.querySelectorAll('.path-line').forEach(l => l.remove());
 }

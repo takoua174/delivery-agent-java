@@ -68,12 +68,12 @@ public class VisualizationUtil {
                 <div id="results">%s</div>
                 <div class="legend">
                     <h3>Legend</h3>
-                    <div class="legend-item"><span class="legend-box store">Store</span> Store</div>
-                    <div class="legend-item"><span class="legend-box customer">Customer</span> Customer</div>
-                    <div class="legend-item"><span class="legend-box tunnel">Tunnel 1</span> Tunnel Entrance</div>
-                    <div class="legend-item"><span class="legend-box blocked">Blocked</span> Blocked Road</div>
-                    <div class="legend-item"><span class="legend-box truck">Truck</span> Truck</div>
-                    <div class="legend-item"><span class="legend-box edge-label">3</span> Traffic Cost</div>
+                    <div class="legend-item"><span class="legend-box store"><i class="fas fa-store"></i></span><span class="legend-label">Store</span></div>
+                    <div class="legend-item"><span class="legend-box customer"><i class="fas fa-home"></i></span><span class="legend-label">Customer</span></div>
+                    <div class="legend-item"><span class="legend-box tunnel"><i class="fas fa-subway"></i></span><span class="legend-label">Tunnel Entrance</span></div>
+                    <div class="legend-item"><span class="legend-box blocked"><i class="fas fa-ban" style="color:white;"></i></span><span class="legend-label">Blocked Road</span></div>
+                    <div class="legend-item"><span class="legend-box truck"><i class="fas fa-truck"></i></span><span class="legend-label">Truck</span></div>
+                    <div class="legend-item"><span class="legend-box edge-cost">3</span><span class="legend-label">Traffic Cost</span></div>
                 </div>
             </div>
         </div>
@@ -160,99 +160,133 @@ h1 { text-align:center; margin-bottom:30px; font-size:2.5em; color:#333; }
               padding:12px; background:#d1fae5; border-radius:6px; text-align:center; }
 
 .legend { margin-top:20px; }
-.legend-item { display:flex; align-items:center; margin-bottom:8px; gap:10px; }
-.legend-box { width:40px; height:40px; border-radius:6px; display:flex;
-              align-items:center; justify-content:center; font-size:18px; }
+.legend-item { display:flex; align-items:center; margin-bottom:12px; gap:12px; }
+    .legend-box { min-width:50px; height:50px; border-radius:8px; display:flex;
+              align-items:center; justify-content:center; font-size:20px; 
+              flex-shrink:0; }
+    .legend-box i { font-size:20px; }
+    .legend-label { font-size:14px; font-weight:500; }
+.legend-box.store { background:linear-gradient(135deg,#3b82f6,#2563eb); color:white; }
+.legend-box.customer { background:linear-gradient(135deg,#10b981,#059669); color:white; }
+.legend-box.tunnel { background:linear-gradient(135deg,#6b7280,#4b5563); color:white; }
+.legend-box.blocked { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; }
+.legend-box.truck { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:white; }
+    .legend-box.edge-cost { background:rgba(255,255,255,0.9); color:#333; 
+                         border:2px solid #d1d5db; font-weight:bold; }
 
 @media (max-width:1200px) { .main-content { grid-template-columns:1fr; } }
 """.formatted(grid.getWidth(), grid.getHeight());
     }
+private static String generateGrid(Grid grid) {
+    StringBuilder html = new StringBuilder("<div class=\"grid\" id=\"grid\">\n");
+    Map<Tunnel, Integer> tunnelIds = new HashMap<>();
+    final int[] counter = {1};
 
-    private static String generateGrid(Grid grid) {
-        StringBuilder html = new StringBuilder("<div class=\"grid\" id=\"grid\">\n");
-        Map<Tunnel, Integer> tunnelIds = new HashMap<>();
-        final int[] counter = {1};
-
-        for (int y = 0; y < grid.getHeight(); y++) {
-            for (int x = 0; x < grid.getWidth(); x++) {
-                Point p = new Point(x, y);
-                html.append("<div class=\"cell\" data-x=\"").append(x).append("\" data-y=\"").append(y).append("\"");
-
-                if (grid.getStores().contains(p)) {
-                    int idx = grid.getStores().indexOf(p);
-                    html.append(" data-type=\"store\"><i class=\"fas fa-store\"></i>")
-                        .append("<span class=\"cell-number\">").append(idx + 1).append("</span>");
-                } else if (grid.getCustomers().contains(p)) {
-                    int idx = grid.getCustomers().indexOf(p);
-                    html.append(" data-type=\"customer\"><i class=\"fas fa-home\"></i>")
-                        .append("<span class=\"cell-number\">").append(idx + 1).append("</span>");
-                } else {
-                    Tunnel t = grid.getTunnelAt(p);
-                    if (t != null) {
-                        int id = tunnelIds.computeIfAbsent(t, k -> counter[0]++);
-                        html.append(" data-type=\"tunnel\"><i class=\"fas fa-subway\"></i>")
-                            .append("<span class=\"tunnel-number\">").append(id).append("</span>");
-                    } else if (isBlockedCell(grid, p)) {
-                        html.append(" data-type=\"blocked\"><i class=\"fas fa-ban\"></i>");
-                    } else {
-                        html.append(">");
-                    }
-                }
-                html.append("</div>\n");
-            }
-        }
-
-        int w = grid.getWidth() * 62;
-        int h = grid.getHeight() * 62;
-        html.append("<svg class=\"edge-overlay\" width=\"").append(w).append("\" height=\"").append(h).append("\">\n");
-
-        // Horizontal edges
-        for (int y = 0; y < grid.getHeight(); y++) {
-            for (int x = 0; x < grid.getWidth() - 1; x++) {
-                Point from = new Point(x, y);
-                Point to = new Point(x + 1, y);
-                int cost = grid.getTrafficCost(from, to);
-                boolean blocked = cost == 0;
-                int cx = x * 62 + 31;
-                int cy = y * 62 + 31;
-                html.append("<line x1=\"").append(cx).append("\" y1=\"").append(cy)
-                    .append("\" x2=\"").append(cx + 62).append("\" y2=\"").append(cy)
-                    .append("\" class=\"edge").append(blocked ? " edge-blocked" : "").append("\"/>");
-                if (blocked) {
-                    html.append("<text x=\"").append(cx + 31).append("\" y=\"").append(cy + 5)
-                        .append("\" class=\"edge-label\"><i class=\"fas fa-ban\" style=\"color:red\"></i></text>");
-                } else if (cost > 0) {
-                    html.append("<text x=\"").append(cx + 31).append("\" y=\"").append(cy + 5)
-                        .append("\" class=\"edge-label\">").append(cost).append("</text>");
-                }
-            }
-        }
-
-        // Vertical edges
+    for (int y = 0; y < grid.getHeight(); y++) {
         for (int x = 0; x < grid.getWidth(); x++) {
-            for (int y = 0; y < grid.getHeight() - 1; y++) {
-                Point from = new Point(x, y);
-                Point to = new Point(x, y + 1);
-                int cost = grid.getTrafficCost(from, to);
-                boolean blocked = cost == 0;
-                int cx = x * 62 + 31;
-                int cy = y * 62 + 31;
-                html.append("<line x1=\"").append(cx).append("\" y1=\"").append(cy)
-                    .append("\" x2=\"").append(cx).append("\" y2=\"").append(cy + 62)
-                    .append("\" class=\"edge").append(blocked ? " edge-blocked" : "").append("\"/>");
-                if (blocked) {
-                    html.append("<text x=\"").append(cx + 5).append("\" y=\"").append(cy + 36)
-                        .append("\" class=\"edge-label\"><i class=\"fas fa-ban\" style=\"color:red\"></i></text>");
-                } else if (cost > 0) {
-                    html.append("<text x=\"").append(cx + 5).append("\" y=\"").append(cy + 36)
-                        .append("\" class=\"edge-label\">").append(cost).append("</text>");
+            Point p = new Point(x, y);
+            html.append("<div class=\"cell\" data-x=\"").append(x).append("\" data-y=\"").append(y).append("\"");
+
+            if (grid.getStores().contains(p)) {
+                int idx = grid.getStores().indexOf(p);
+                html.append(" data-type=\"store\"><i class=\"fas fa-store\"></i>")
+                    .append("<span class=\"cell-number\">").append(idx + 1).append("</span>");
+            } else if (grid.getCustomers().contains(p)) {
+                int idx = grid.getCustomers().indexOf(p);
+                html.append(" data-type=\"customer\"><i class=\"fas fa-home\"></i>")
+                    .append("<span class=\"cell-number\">").append(idx + 1).append("</span>");
+            } else {
+                Tunnel t = grid.getTunnelAt(p);
+                if (t != null) {
+                    int id = tunnelIds.computeIfAbsent(t, k -> counter[0]++);
+                    html.append(" data-type=\"tunnel\"><i class=\"fas fa-subway\"></i>")
+                        .append("<span class=\"tunnel-number\">").append(id).append("</span>");
+                } else if (isBlockedCell(grid, p)) {
+                    html.append(" data-type=\"blocked\"><i class=\"fas fa-ban\"></i>");
+                } else {
+                    html.append(">");
                 }
             }
+            html.append("</div>\n");
         }
-
-        html.append("</svg></div>\n");
-        return html.toString();
     }
+
+    int w = grid.getWidth() * 62;
+    int h = grid.getHeight() * 62;
+    html.append("<svg class=\"edge-overlay\" width=\"").append(w).append("\" height=\"").append(h).append("\">\n");
+
+    // Horizontal edges
+    for (int y = 0; y < grid.getHeight(); y++) {
+        for (int x = 0; x < grid.getWidth() - 1; x++) {
+            Point from = new Point(x, y);
+            Point to = new Point(x + 1, y);
+            int cost = grid.getTrafficCost(from, to);
+            boolean blocked = cost == 0;
+            int cx = x * 62 + 31;
+            int cy = y * 62 + 31;
+            html.append("<line x1=\"").append(cx).append("\" y1=\"").append(cy)
+                .append("\" x2=\"").append(cx + 62).append("\" y2=\"").append(cy)
+                .append("\" class=\"edge").append(blocked ? " edge-blocked" : "").append("\"/>\n");
+        }
+    }
+
+    // Vertical edges
+    for (int x = 0; x < grid.getWidth(); x++) {
+        for (int y = 0; y < grid.getHeight() - 1; y++) {
+            Point from = new Point(x, y);
+            Point to = new Point(x, y + 1);
+            int cost = grid.getTrafficCost(from, to);
+            boolean blocked = cost == 0;
+            int cx = x * 62 + 31;
+            int cy = y * 62 + 31;
+            html.append("<line x1=\"").append(cx).append("\" y1=\"").append(cy)
+                .append("\" x2=\"").append(cx).append("\" y2=\"").append(cy + 62)
+                .append("\" class=\"edge").append(blocked ? " edge-blocked" : "").append("\"/>\n");
+        }
+    }
+
+    html.append("</svg>\n");
+    
+    // Add traffic labels as HTML divs AFTER the SVG
+    // Horizontal labels
+    for (int y = 0; y < grid.getHeight(); y++) {
+        for (int x = 0; x < grid.getWidth() - 1; x++) {
+            Point from = new Point(x, y);
+            Point to = new Point(x + 1, y);
+            int cost = grid.getTrafficCost(from, to);
+            int cx = x * 62 + 31;
+            int cy = y * 62 + 31;
+            if (cost == 0) {
+                html.append("<div class=\"edge-label\" style=\"left:").append(cx + 31 - 10).append("px;top:")
+                    .append(cy - 10).append("px;\"><i class=\"fas fa-ban\" style=\"color:red;\"></i></div>\n");
+            } else if (cost > 0) {
+                html.append("<div class=\"edge-label\" style=\"left:").append(cx + 31 - 10).append("px;top:")
+                    .append(cy - 10).append("px;\">").append(cost).append("</div>\n");
+            }
+        }
+    }
+
+    // Vertical labels
+    for (int x = 0; x < grid.getWidth(); x++) {
+        for (int y = 0; y < grid.getHeight() - 1; y++) {
+            Point from = new Point(x, y);
+            Point to = new Point(x, y + 1);
+            int cost = grid.getTrafficCost(from, to);
+            int cx = x * 62 + 31;
+            int cy = y * 62 + 31;
+            if (cost == 0) {
+                html.append("<div class=\"edge-label\" style=\"left:").append(cx - 10).append("px;top:")
+                    .append(cy + 31 - 10).append("px;\"><i class=\"fas fa-ban\" style=\"color:red;\"></i></div>\n");
+            } else if (cost > 0) {
+                html.append("<div class=\"edge-label\" style=\"left:").append(cx - 10).append("px;top:")
+                    .append(cy + 31 - 10).append("px;\">").append(cost).append("</div>\n");
+            }
+        }
+    }
+
+    html.append("</div>\n");
+    return html.toString();
+}
 
     // Fixed: Added missing method
     private static boolean isBlockedCell(Grid grid, Point cell) {

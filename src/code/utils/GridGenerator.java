@@ -14,7 +14,7 @@ public class GridGenerator {
         int n = 5 + rand.nextInt(11);  // height
         int P = 1 + rand.nextInt(10);  // 1-10
         int S = 1 + rand.nextInt(3);   // 1-3
-        int numTunnels = rand.nextInt(5);  // 0-4
+        int numTunnels =1+ rand.nextInt(3);  // 0-4
 
         // Random distinct stores
         Set<Point> occupied = new HashSet<>();
@@ -134,15 +134,19 @@ public class GridGenerator {
             }
         }
 
-        // Traffic: last part
-        if (parts.length > 6) {
-            String[] trafficStrs = parts[parts.length - 1].split(";");
+        // Traffic = everything after tunnels (parts[7], parts[8], ...)
+        for (int i = 7; i < parts.length; i++) {
+            if (parts[i].isEmpty()) continue;
+
+            String[] trafficStrs = parts[i].split(";");
             for (String tr : trafficStrs) {
                 if (tr.isEmpty()) continue;
+
                 String[] t = tr.split(",");
                 Point from = new Point(Integer.parseInt(t[0]), Integer.parseInt(t[1]));
-                Point to = new Point(Integer.parseInt(t[2]), Integer.parseInt(t[3]));
-                int level = Integer.parseInt(t[4]);
+                Point to   = new Point(Integer.parseInt(t[2]), Integer.parseInt(t[3]));
+                int level  = Integer.parseInt(t[4]);
+
                 grid.addTraffic(from, to, level);
             }
         }

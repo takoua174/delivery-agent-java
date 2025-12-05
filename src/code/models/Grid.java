@@ -34,10 +34,7 @@ public class Grid {
         return getTrafficCost(from, to) == 0;
     }
 
-    public int getTrafficLevel(Point from, Point to) {
-        String key = edgeKey(from, to);
-        return trafficLevels.getOrDefault(key, 1);
-    }
+
     public void addTraffic(Point from, Point to, int level) {
         String key = edgeKey(from, to);
         trafficLevels.put(key, level);
@@ -59,7 +56,9 @@ public class Grid {
     public Tunnel getTunnelAt(Point position) {
         return tunnels.stream().filter(t -> t.hasEntrance(position)).findFirst().orElse(null);
     }
-
+    public Map<String, Integer> getTrafficLevels() {
+        return trafficLevels;
+    }
 
     public List<Point> getStores() { return stores; }
     public List<Point> getCustomers() { return customers; }
@@ -97,6 +96,8 @@ public class Grid {
     }
 
     private String edgeKey(Point from, Point to) {
-        return from.getX() + "," + from.getY() + "-" + to.getX() + "," + to.getY();
+        return from.getX() + "," + from.getY() + "," + to.getX() + "," + to.getY();
     }
+
+
 }

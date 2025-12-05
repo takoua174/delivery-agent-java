@@ -1,0 +1,28 @@
+-------------------------------------------------------------------------------
+Test set: code.delivery.DeliverySearchTest
+-------------------------------------------------------------------------------
+Tests run: 11, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 0.641 s <<< FAILURE! -- in code.delivery.DeliverySearchTest
+code.delivery.DeliverySearchTest.testAStar1_StoreToCustomer2_WithTunnel -- Time elapsed: 0.160 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Cost should be at least optimal ==> expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:214)
+	at code.delivery.DeliverySearchTest.testAStar1_StoreToCustomer2_WithTunnel(DeliverySearchTest.java:480)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+code.delivery.DeliverySearchTest.testUCS_StoreToCustomer2_ComplexPath -- Time elapsed: 0.042 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Cost should be at least 11 (optimal) ==> expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:214)
+	at code.delivery.DeliverySearchTest.testUCS_StoreToCustomer2_ComplexPath(DeliverySearchTest.java:451)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+

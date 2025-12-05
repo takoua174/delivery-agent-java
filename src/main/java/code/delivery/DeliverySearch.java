@@ -110,9 +110,11 @@ public class DeliverySearch extends GenericSearch implements Problem {
         }
         System.out.println("DEBUG: Path validated OK, ends at " + dest + ", cost=" + goal.getPathCost());
         
-        // Rest unchanged: returnPath, totalCost=2*..., fullPath
         List<String> returnPath = new ArrayList<>();
-        // ... (reverse loop)
+        for (int i = path.size() - 1; i >= 0; i--) {
+            String revOp = reverseOp(path.get(i));
+            returnPath.add(revOp);
+        }
         int totalCost = goal.getPathCost();
         String fullPath = String.join(",", path) + ",|RETURN|," + String.join(",", returnPath);
         return fullPath + ";" + totalCost + ";" + getNodesExpanded();

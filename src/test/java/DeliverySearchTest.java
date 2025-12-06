@@ -1,5 +1,5 @@
 package code.delivery;
-
+import java.util.*;
 import code.delivery.models.*;
 import code.delivery.utils.GridGenerator;
 import org.junit.jupiter.api.BeforeAll;
@@ -355,7 +355,7 @@ public class DeliverySearchTest {
         assertTrue(path.equals(expectedPath), "A*-h1 path should match expected path");
         
         // A* with admissible heuristic guarantees optimal
-        assertEquals(10, cost, "A*-h1 should find optimal cost path (10)");
+        assertEquals(10, cost, "A*1 should find optimal cost path (10)");
         // A* should expand fewer nodes than UCS
         assertTrue(nodesExpanded > 0, "Should expand some nodes");
     }
@@ -443,6 +443,201 @@ public class DeliverySearchTest {
         assertEquals(7, cost, "A*-h2 must find optimal cost 7  to Customer 2");
     }    
     
+    @Test
+    public void testGreedy1_StoreToCustomer2() {
+        Point store = testGrid.getStores().get(0);
+        Point customer = testGrid.getCustomers().get(1);
+        
+        DeliverySearch search = new DeliverySearch(testGrid, store, customer);
+        String result = search.solve("GR1");
+        
+        assertNotNull(result, "GR1 should find a path");
+        assertFalse(result.startsWith("NoPath"), "GR1 should not return NoPath");
+        
+        String[] parts = result.split(";");
+        int cost = Integer.parseInt(parts[1]);
+        int nodesExpanded = Integer.parseInt(parts[2]);
+        String path = parts[0];
+        
+        System.out.println("\n=== Greedy-h1 Test: Store(0,0) -> Customer2(4,2) ===");
+        System.out.println("Path: " + path);
+        System.out.println("Cost: " + cost);
+        System.out.println("Nodes Expanded: " + nodesExpanded);
+        
+        assertTrue(cost > 0, "Path cost should be positive");
+        assertTrue(nodesExpanded > 0, "Should expand some nodes");
+        System.out.println("Note: Greedy may not find optimal cost (7), but should be fast");
+    }
+
+    @Test
+    public void testGreedy2_StoreToCustomer2() {
+        Point store = testGrid.getStores().get(0);
+        Point customer = testGrid.getCustomers().get(1);
+        
+        DeliverySearch search = new DeliverySearch(testGrid, store, customer);
+        String result = search.solve("GR2");
+        
+        assertNotNull(result, "GR2 should find a path");
+        assertFalse(result.startsWith("NoPath"), "GR2 should not return NoPath");
+        
+        String[] parts = result.split(";");
+        int cost = Integer.parseInt(parts[1]);
+        int nodesExpanded = Integer.parseInt(parts[2]);
+        String path = parts[0];
+        
+        System.out.println("\n=== Greedy-h2 Test: Store(0,0) -> Customer2(4,2) ===");
+        System.out.println("Path: " + path);
+        System.out.println("Cost: " + cost);
+        System.out.println("Nodes Expanded: " + nodesExpanded);
+        
+        assertTrue(cost > 0, "Path cost should be possitive");
+        assertTrue(nodesExpanded > 0, "Should expand some nodes");
+        System.out.println("Note: Greedy-h2 with Euclidean may differ from GR1 in node expansion");
+    }
+    /**
+     * Summary test that runs all algorithms and compares results
+     * Measures: Cost, Nodes Expanded, Time, Memory
+     */
+    @Test
+    public void testAllAlgorithms_Comparison() {
+        Point store = testGrid.getStores().get(0);
+        Point customer = testGrid.getCustomers().get(1);
+        
+        String[] algorithms = {"BF", "DF", "ID", "UC", "GR1", "GR2", "AS1", "AS2"};
+        
+        System.out.println("\n" + "=".repeat(100));
+        System.out.println("COMPREHENSIVE ALGORITHM COMPARISON: Store(0,0) -> Customer2(4,2)");
+        System.out.println("=".repeat(100));
+        System.out.println(String.format("%-10s | %-6s | %-8s | %-12s | %-12s | %s", 
+                                        "Strategy", "Cost", "Nodes", "Time (ms)", "Memory (KB)", "Path Preview"));
+        System.out.println("-".repeat(100));
+        
+        Map<String, AlgorithmMetrics> results = new HashMap<>();
+        
+        for (String algo : algorithms) {
+            Runtime runtime = Runtime.getRuntime();
+            // Force garbage collection before each test for fair memory comparison 
+            System.gc();
+            System.gc(); // Call twice for better clearing
+            try {
+                Thread.sleep(200); // Longer wait for GC to complete
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            long memBefore = runtime.totalMemory() - runtime.freeMemory();
+            long startTime = System.nanoTime();
+            
+            DeliverySearch search = new DeliverySearch(testGrid, store, customer);
+            String result = search.solve(algo);
+            
+            long endTime = System.nanoTime();
     
+            long memAfter = runtime.totalMemory() - runtime.freeMemory();
+            
+            assertNotNull(result, algo + " should find a path");
+            assertFalse(result.startsWith("NoPath"), algo + " should not return NoPath");
+            
+            String[] parts = result.split(";");
+            int cost = Integer.parseInt(parts[1]);
+            int nodes = Integer.parseInt(parts[2]);
+            long timeMs = (endTime - startTime) / 1_000_000;
+            long memoryKB = Math.max(0, memAfter - memBefore) / 1024;
+            String pathPreview = parts[0].substring(0, Math.min(35, parts[0].length()));
+            
+            AlgorithmMetrics metrics = new AlgorithmMetrics(algo, cost, nodes, timeMs, memoryKB, parts[0]);
+            results.put(algo, metrics);
+            
+            System.out.println(String.format("%-10s | %-6d | %-8d | %-12d | %-12d | %s...", 
+                                            algo, cost, nodes, timeMs, memoryKB, pathPreview));
+        }
+        
+        // Analysis Section
+        System.out.println("\n" + "=".repeat(100));
+        System.out.println("ANALYSIS");
+        System.out.println("=".repeat(100));
+        
+        // 1. Completeness Analysis
+        System.out.println("\n1. COMPLETENESS (All algorithms should find a solution):");
+        boolean allComplete = results.values().stream().allMatch(m -> m.cost > 0);
+        System.out.println("All algorithms found a path: " + allComplete);
+        
+        // 2. Optimality Analysis
+        System.out.println("\n2. OPTIMALITY (Which algorithms guarantee optimal solutions):");
+        int optimalCost = results.get("UC").cost;
+        System.out.println("   Optimal Cost (from UC): " + optimalCost);
+        System.out.println("   - BF (shortest moves): Cost = " + results.get("BF").cost + 
+                         (results.get("BF").cost == optimalCost ? " ✓ Optimal by cost" : " (optimal by # moves)"));
+        System.out.println("   - UC (optimal cost): Cost = " + results.get("UC").cost + " ✓ Guaranteed optimal");
+        System.out.println("   - AS1 (A* Manhattan): Cost = " + results.get("AS1").cost + 
+                         (results.get("AS1").cost == optimalCost ? " ✓ Optimal (admissible heuristic)" : " ✗ Suboptimal"));
+        System.out.println("   - AS2 (A* Euclidean): Cost = " + results.get("AS2").cost + 
+                         (results.get("AS2").cost == optimalCost ? " ✓ Optimal (admissible heuristic)" : " ✗ Suboptimal"));
+        System.out.println("   - DF (depth-first): Cost = " + results.get("DF").cost + " (not guaranteed optimal)");
+        System.out.println("   - ID (iterative deep): Cost = " + results.get("ID").cost + " (optimal by # moves)");
+        System.out.println("   - GR1 (greedy): Cost = " + results.get("GR1").cost + " (not guaranteed optimal)");
+        System.out.println("   - GR2 (greedy): Cost = " + results.get("GR2").cost + " (not guaranteed optimal)");
+        
+        // 3. Node Expansion Efficiency
+        System.out.println("\n3. NODE EXPANSION EFFICIENCY (Lower is better):");
+        results.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.comparingInt(m -> m.nodesExpanded)))
+            .forEach(e -> System.out.println(String.format("   %-10s: %6d nodes", e.getKey(), e.getValue().nodesExpanded)));
+        
+        System.out.println("\n   Key Insights:");
+        System.out.println("   - Greedy algorithms (GR1, GR2) expand fewest nodes (fast but may be suboptimal)");
+        System.out.println("   - A* algorithms balance optimality with efficiency (fewer nodes than UC)");
+        System.out.println("   - BF explores all paths at each level (many nodes for optimal # moves)");
+        System.out.println("   - DF may explore deeply before finding goal (variable performance)");
+        
+        // 4. Time Performance
+        System.out.println("\n4. TIME PERFORMANCE (Execution time in milliseconds):");
+        results.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.comparingLong(m -> m.timeMs)))
+            .forEach(e -> System.out.println(String.format("   %-10s: %6d ms", e.getKey(), e.getValue().timeMs)));
+        
+        // 5. Memory Usage
+        System.out.println("\n5. MEMORY USAGE (RAM in KB - approximate):");
+        results.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.comparingLong(m -> m.memoryKB)))
+            .forEach(e -> System.out.println(String.format("   %-10s: %6d KB", e.getKey(), e.getValue().memoryKB)));
+        
+        System.out.println("\n   Note: Memory measurements are approximate due to JVM garbage collection");
+        System.out.println("   and memory management. DFS/ID typically use less memory (depth-limited).");
+        
+        // 6. Overall Recommendations
+        System.out.println("\n6. RECOMMENDATIONS:");
+        System.out.println("   + For OPTIMAL cost: Use UC or AS1/AS2 (A* is faster)");
+        System.out.println("   + For SPEED: Use GR1 or GR2 (if suboptimal solutions acceptable)");
+        System.out.println("   + For LOW MEMORY: Use DF or ID (depth-limited exploration)");
+        System.out.println("   + For shortest # of MOVES: Use BF or ID");
+        
+        System.out.println("\n" + "=".repeat(100) + "\n");
+        
+        // Assertions for key properties
+        assertEquals(optimalCost, results.get("AS1").cost, "A*1 should find optimal solution");
+        assertTrue(results.get("AS1").nodesExpanded <= results.get("UC").nodesExpanded,
+                  "A* should expand fewer or equal nodes than UC");
+    }
     
+    /**
+     * Helper class to store algorithm performance metrics
+     */
+    private static class AlgorithmMetrics {
+        String algorithm;
+        int cost;
+        int nodesExpanded;
+        long timeMs;
+        long memoryKB;
+        String path;
+        
+        AlgorithmMetrics(String algorithm, int cost, int nodesExpanded, long timeMs, long memoryKB, String path) {
+            this.algorithm = algorithm;
+            this.cost = cost;
+            this.nodesExpanded = nodesExpanded;
+            this.timeMs = timeMs;
+            this.memoryKB = memoryKB;
+            this.path = path;
+        }
+    }
 }

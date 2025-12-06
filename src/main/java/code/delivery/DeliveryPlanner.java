@@ -42,13 +42,13 @@ public class DeliveryPlanner {
         sb.append("number of customers: ").append(customers.size()).append("\n");
         sb.append("Width of the grid: ").append(grid.getWidth()).append("\n");
         sb.append("Height of the grid: ").append(grid.getHeight()).append("\n");
-       for(Tunnel tunnel : grid.getTunnels()) {
+        /*for(Tunnel tunnel : grid.getTunnels()) {
             sb.append("Tunnel between ").append(tunnel.getEntrance1()).append(" and ").append(tunnel.getEntrance2()).append("\n");
         }
         sb.append("Traffic:\n");
         for (Map.Entry<String, Integer> entry : grid.getTrafficLevels().entrySet()) {
             sb.append("From ").append(entry.getKey().replace("-", " to ")).append(" : Level ").append(entry.getValue()).append("\n");
-        }
+        }*/
         int totalCost = 0;
         for (Map.Entry<Integer, List<Integer>> entry : assignment.entrySet()) {
             int storeIdx = entry.getKey();

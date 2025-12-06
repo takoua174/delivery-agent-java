@@ -84,13 +84,19 @@ public class DeliverySearch extends GenericSearch implements Problem {
     }
 
     private int heuristic2(State state) {
-        return (int) (1.5 * heuristic1(state));
+        Point current = state.getCurrentLocation();
+        Point goal = dest;
+        
+        double dx = Math.abs(current.getX() - goal.getX());
+        double dy = Math.abs(current.getY() - goal.getY());
+        
+        return (int) Math.ceil(Math.sqrt(dx * dx + dy * dy));
     }
 
     private String formatSolution(Node goal) {
         List<String> path = goal.getPath();
-        
-        // NEW: Validate path reaches goal (debug the reconstruction bug)
+        //for debugging, re-simulate the path to ensure correctness
+        /*
         Point simulated = store;
         System.out.println("DEBUG: Simulating path from " + store + " with actions: " + String.join(",", path));  // Log the raw path
         for (int i = 0; i < path.size(); i++) {
@@ -109,7 +115,7 @@ public class DeliverySearch extends GenericSearch implements Problem {
             return "NoPath;0;" + getNodesExpanded();
         }
         System.out.println("DEBUG: Path validated OK, ends at " + dest + ", cost=" + goal.getPathCost());
-        
+        */
         List<String> returnPath = new ArrayList<>();
         for (int i = path.size() - 1; i >= 0; i--) {
             String revOp = reverseOp(path.get(i));
@@ -158,6 +164,10 @@ public class DeliverySearch extends GenericSearch implements Problem {
 
     private static class BFSQueuingFunction implements QueuingFunction {
         @Override
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            return !visited.containsKey(node.getState());
+        }
+        @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             frontier.addAll(expanded);
             return frontier;
@@ -165,6 +175,10 @@ public class DeliverySearch extends GenericSearch implements Problem {
     }
 
     private static class DFSQueuingFunction implements QueuingFunction {
+        @Override
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            return !visited.containsKey(node.getState());
+        }
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             Deque<Node> newFrontier = new LinkedList<>(frontier);
@@ -176,6 +190,12 @@ public class DeliverySearch extends GenericSearch implements Problem {
     }
 
     private static class UCSQueuingFunction implements QueuingFunction {
+        @Override
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            Node old = visited.get(node.getState());
+            if (old == null) return true;
+            return node.getPathCost() < old.getPathCost(); 
+        }
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             PriorityQueue<Node> pq = new PriorityQueue<>(Comparator.comparingInt(Node::getPathCost));
@@ -194,7 +214,10 @@ public class DeliverySearch extends GenericSearch implements Problem {
             //which heuristic to use
             this.hNum = hNum;
         }
-
+        @Override
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            return !visited.containsKey(node.getState());
+        }
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             PriorityQueue<Node> pq = new PriorityQueue<>((a, b) -> {
@@ -216,20 +239,41 @@ public class DeliverySearch extends GenericSearch implements Problem {
             this.search = search;
             this.hNum = hNum;
         }
+        
+        private int h(State s) {
+            return hNum == 1 ? search.heuristic1(s) : search.heuristic2(s);
+        }
+
+        @Override
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            Node old = visited.get(node.getState());
+            if (old == null) return true;
+
+            int fNew = node.getPathCost() + h(node.getState());
+            int fOld = old.getPathCost() + h(old.getState());
+
+            return fNew < fOld;   
+        }
+
 
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             PriorityQueue<Node> pq = new PriorityQueue<>((a, b) -> {
-                int fa = a.getPathCost() + (hNum == 1 ? search.heuristic1(a.getState()) : search.heuristic2(a.getState()));
-                int fb = b.getPathCost() + (hNum == 1 ? search.heuristic1(b.getState()) : search.heuristic2(b.getState()));
-                return Integer.compare(fa, fb);
+                int ha = hNum == 1 ? search.heuristic1(a.getState()) : search.heuristic2(a.getState());
+                int hb = hNum == 1 ? search.heuristic1(b.getState()) : search.heuristic2(b.getState());
+                int fa = a.getPathCost() + ha;
+                int fb = b.getPathCost() + hb;
+
+                if (fa != fb) return Integer.compare(fa, fb);
+                
+                // Tie-breaker: prefer node with LARGER g (deeper)
+                return Integer.compare(b.getPathCost(), a.getPathCost()); // b before a = deeper first
             });
             pq.addAll(frontier);
             pq.addAll(expanded);
             return pq;
         }
-    }
-
+}
     private Node depthLimitedSearch(int limit) {
         QueuingFunction qf = new LimitedDepthSearchQueuingFunction(limit);
         return search(this, qf);
@@ -247,17 +291,18 @@ public class DeliverySearch extends GenericSearch implements Problem {
 
     }
 
-    private static class LimitedDepthSearchQueuingFunction implements QueuingFunction, DepthLimited {
+    private static class LimitedDepthSearchQueuingFunction implements QueuingFunction {
         private final int depthLimit;
         private final DFSQueuingFunction dfs = new DFSQueuingFunction();
 
         LimitedDepthSearchQueuingFunction(int depthLimit) {
             this.depthLimit = depthLimit;
         }
-
         @Override
-        public int getDepthLimit() { return depthLimit; }
-
+        public boolean shouldExpand(Node node, Map<State, Node> visited) {
+            if (node.getDepth() > depthLimit) return false;
+            return !visited.containsKey(node.getState());
+        }
         @Override
         public Queue<Node> insert(List<Node> expanded, Queue<Node> frontier) {
             return dfs.insert(expanded, frontier);

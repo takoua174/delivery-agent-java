@@ -9,25 +9,24 @@ public class GenericSearch {
         nodesExpanded = 0;
         Queue<Node> nodes = new LinkedList<>();
         nodes.add(makeNode(problem.getInitialState()));
-        //explored ensures I don’t expand the same state twice,
-        Set<State> explored = new HashSet<>();
-        int depthLimit = Integer.MAX_VALUE;
-        if (queuingFn instanceof DepthLimited) {
-            depthLimit = ((DepthLimited) queuingFn).getDepthLimit();
-        }
+        Map<State, Node> visited = new HashMap<>();
+
         while (!nodes.isEmpty()) {
             Node node = nodes.poll();
     
+            if (!queuingFn.shouldExpand(node, visited)) {
+                continue;
+            }
+
+            visited.put(node.getState(), node);
+            // Goal test AFTER the shouldExpand check (A* compatibility)
             if (problem.goalTest(node.getState())) {
                 return node;
             }
-            if (node.getDepth() <= depthLimit) {
-                if (!explored.contains(node.getState())) {
-                    explored.add(node.getState());
-                    List<Node> expanded = expand(node, problem);
-                    nodes = queuingFn.insert(expanded, nodes);
-                }
-            }
+
+            // Expand children
+            List<Node> expanded = expand(node, problem);
+            nodes = queuingFn.insert(expanded, nodes);
         }
         return null;
     }

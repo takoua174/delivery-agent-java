@@ -6,3 +6,4 @@ java -cp bin code.Main
 execute with maven :
 mvn -DskipTests compile
 mvn -DskipTests exec:java
+mvn test
